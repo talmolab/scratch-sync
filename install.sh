@@ -12,7 +12,7 @@
 #   NO_SERVICE     - Set to 1 to skip service setup
 #
 # Examples:
-#   curl -LsSf .../install.sh | sh                    # Install
+#   curl -LsSf https://raw.githubusercontent.com/talmolab/scratch-sync/main/install.sh | sh
 #   curl -LsSf .../install.sh | sh -s -- --uninstall  # Uninstall
 #   curl -LsSf .../install.sh | sh -s -- --upgrade    # Upgrade
 #   curl -LsSf .../install.sh | sh -s -- -y           # Install without prompts

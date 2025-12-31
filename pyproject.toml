@@ -14,8 +14,8 @@ dependencies = [
 scratch-sync = "scratch_sync.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/talmo/scratch-sync"
-Repository = "https://github.com/talmo/scratch-sync"
+Homepage = "https://github.com/talmolab/scratch-sync"
+Repository = "https://github.com/talmolab/scratch-sync"
 
 [build-system]
 requires = ["hatchling"]

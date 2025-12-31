@@ -32,7 +32,7 @@ Each repo has a `scratch/` subfolder that's `.gitignore`d — notes, experiments
 ### Install
 
 ```bash
-curl -LsSf https://raw.githubusercontent.com/talmo/scratch-sync/main/install.sh | sh
+curl -LsSf https://raw.githubusercontent.com/talmolab/scratch-sync/main/install.sh | sh
 ```
 
 ### Usage

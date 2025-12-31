@@ -49,6 +49,21 @@ function Get-LatestSyncthingVersion {
 }
 
 function Install-Syncthing {
+    # Check if already installed
+    if (Test-Path "$InstallDir\syncthing.exe") {
+        $version = & "$InstallDir\syncthing.exe" --version 2>$null | Select-Object -First 1
+        if ($version -match 'v([\d\.]+)') {
+            Write-Success "Syncthing already installed: $($matches[0])"
+            Write-Host ""
+            Write-Host "  Location: $InstallDir\syncthing.exe"
+            Write-Host "  Config:   $ConfigDir"
+            Write-Host "  Web UI:   http://127.0.0.1:8384"
+            Write-Host ""
+            Write-Info "To reinstall, run: .\install.ps1 -Uninstall; .\install.ps1"
+            return
+        }
+    }
+
     $tempDir = Join-Path $env:TEMP "scratch-sync-install-$(Get-Random)"
     New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
 

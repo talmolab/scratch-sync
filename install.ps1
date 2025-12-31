@@ -1,15 +1,16 @@
 # scratch-sync installer for Windows
 # Usage: iwr -useb https://scratch.tlab.sh/install.ps1 | iex
 #
-# Or download and run:
-#   Invoke-WebRequest -Uri https://scratch.tlab.sh/install.ps1 -OutFile install.ps1
-#   .\install.ps1
+# This is a wrapper around SyncthingWindowsSetup by Bill Stewart
+# https://github.com/Bill-Stewart/SyncthingWindowsSetup
+#
+# Options:
+#   -Uninstall    Uninstall syncthing
+#   -AllUsers     Install as Windows service (requires admin)
 
 param(
-    [string]$SyncthingVersion = "2.0.12",
-    [string]$InstallDir = "$env:LOCALAPPDATA\Programs\syncthing",
-    [switch]$NoService,
-    [switch]$Uninstall
+    [switch]$Uninstall,
+    [switch]$AllUsers
 )
 
 $ErrorActionPreference = "Stop"
@@ -20,7 +21,14 @@ function Write-Success { Write-Host "done: " -ForegroundColor Green -NoNewline; 
 function Write-Warning { Write-Host "warn: " -ForegroundColor Yellow -NoNewline; Write-Host $args }
 function Write-Err { Write-Host "error: " -ForegroundColor Red -NoNewline; Write-Host $args; exit 1 }
 
-# Detect architecture
+# Installation paths (match SyncthingWindowsSetup defaults)
+$InstallDir = if ($AllUsers) { "$env:ProgramFiles\Syncthing" } else { "$env:LOCALAPPDATA\Programs\Syncthing" }
+$ConfigDir = if ($AllUsers) { "$env:ProgramData\Syncthing" } else { "$env:LOCALAPPDATA\Syncthing" }
+
+# URLs
+$SetupUrl = "https://github.com/Bill-Stewart/SyncthingWindowsSetup/releases/latest/download/syncthing-windows-setup.exe"
+$SyncthingReleasesApi = "https://api.github.com/repos/syncthing/syncthing/releases/latest"
+
 function Get-Arch {
     $arch = [Environment]::GetEnvironmentVariable("PROCESSOR_ARCHITECTURE")
     switch ($arch) {
@@ -31,209 +39,134 @@ function Get-Arch {
     }
 }
 
-# Check if syncthing already exists
-function Test-ExistingInstall {
-    if (Test-Path "$InstallDir\syncthing.exe") {
-        $version = & "$InstallDir\syncthing.exe" --version 2>$null | Select-Object -First 1
-        Write-Warning "Syncthing already installed at: $InstallDir"
-        Write-Warning "Version: $version"
-
-        $reply = Read-Host "Continue with installation? [y/N]"
-        if ($reply -notmatch '^[yY]') {
-            Write-Info "Installation cancelled"
-            exit 0
-        }
-    }
-
-    # Check if running
-    $proc = Get-Process -Name "syncthing" -ErrorAction SilentlyContinue
-    if ($proc) {
-        Write-Warning "Syncthing is currently running"
-        Write-Info "Stopping syncthing..."
-        Stop-Process -Name "syncthing" -Force -ErrorAction SilentlyContinue
-        Start-Sleep -Seconds 2
+function Get-LatestSyncthingVersion {
+    try {
+        $response = Invoke-RestMethod -Uri $SyncthingReleasesApi -UseBasicParsing
+        return $response.tag_name  # e.g., "v1.27.12"
+    } catch {
+        Write-Err "Failed to get latest Syncthing version: $_"
     }
 }
 
-# Install syncthing
 function Install-Syncthing {
-    Write-Info "Installing Syncthing v$SyncthingVersion..."
-
-    $arch = Get-Arch
-    Write-Info "Detected architecture: windows-$arch"
-
-    # Create install directory
-    if (-not (Test-Path $InstallDir)) {
-        New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
-    }
-
-    # Download URL
-    $downloadUrl = "https://github.com/syncthing/syncthing/releases/download/v$SyncthingVersion/syncthing-windows-$arch-v$SyncthingVersion.zip"
-    Write-Info "Downloading from: $downloadUrl"
-
-    # Create temp directory
-    $tempDir = Join-Path $env:TEMP "syncthing-install-$(Get-Random)"
+    $tempDir = Join-Path $env:TEMP "scratch-sync-install-$(Get-Random)"
     New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
 
     try {
-        # Download
+        # Get latest version
+        Write-Info "Checking latest Syncthing version..."
+        $version = Get-LatestSyncthingVersion
+        $arch = Get-Arch
+        Write-Info "Latest version: $version (windows-$arch)"
+
+        # Download Syncthing zip
+        $zipUrl = "https://github.com/syncthing/syncthing/releases/download/$version/syncthing-windows-$arch-$version.zip"
         $zipPath = Join-Path $tempDir "syncthing.zip"
-        Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath -UseBasicParsing
+        Write-Info "Downloading Syncthing..."
+        Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -UseBasicParsing
 
-        # Extract
-        Expand-Archive -Path $zipPath -DestinationPath $tempDir -Force
+        # Download SyncthingWindowsSetup
+        $setupPath = Join-Path $tempDir "syncthing-windows-setup.exe"
+        Write-Info "Downloading SyncthingWindowsSetup..."
+        Invoke-WebRequest -Uri $SetupUrl -OutFile $setupPath -UseBasicParsing
 
-        # Find binary
-        $binary = Get-ChildItem -Path $tempDir -Recurse -Filter "syncthing.exe" | Select-Object -First 1
-        if (-not $binary) {
-            Write-Err "Could not find syncthing.exe in downloaded archive"
+        # Build arguments for silent install with pre-downloaded zip
+        $setupArgs = @("/silent", "/zipfilepath=`"$zipPath`"")
+
+        if ($AllUsers) {
+            $setupArgs += "/allusers"
+            Write-Info "Installing for all users (Windows service)..."
+        } else {
+            $setupArgs += "/currentuser"
+            Write-Info "Installing for current user..."
         }
 
-        # Copy to install dir
-        Copy-Item -Path $binary.FullName -Destination "$InstallDir\syncthing.exe" -Force
+        # Run installer (don't use -Wait as it hangs after silent install completes)
+        Write-Info "Running SyncthingWindowsSetup (silent)..."
+        $process = Start-Process -FilePath $setupPath -ArgumentList $setupArgs -PassThru
 
-        Write-Success "Installed syncthing to $InstallDir\syncthing.exe"
+        # Wait for the setup process to exit (with timeout)
+        $timeout = 120  # seconds
+        $waited = 0
+        while (-not $process.HasExited -and $waited -lt $timeout) {
+            Start-Sleep -Seconds 1
+            $waited++
+        }
 
-        # Verify
-        $version = & "$InstallDir\syncthing.exe" --version 2>$null | Select-Object -First 1
-        Write-Success "Verified: $version"
+        if (-not $process.HasExited) {
+            Write-Warning "Installer is taking longer than expected, but may still complete..."
+        } elseif ($process.ExitCode -ne 0) {
+            Write-Err "Installation failed with exit code: $($process.ExitCode)"
+        }
+
+        # Verify installation succeeded by checking for binary
+        Start-Sleep -Seconds 2  # Give it a moment to finish
+        if (Test-Path "$InstallDir\syncthing.exe") {
+            Write-Success "Installation complete!"
+        } else {
+            Write-Err "Installation may have failed - syncthing.exe not found"
+        }
+        Write-Host ""
+        Print-Instructions
     }
     finally {
-        # Cleanup
+        # Cleanup temp files
         Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
 
-# Add to PATH
-function Add-ToPath {
-    $currentPath = [Environment]::GetEnvironmentVariable("Path", "User")
-    if ($currentPath -notlike "*$InstallDir*") {
-        Write-Warning "$InstallDir is not in your PATH"
-        $reply = Read-Host "Add to PATH? [y/N]"
-        if ($reply -match '^[yY]') {
-            [Environment]::SetEnvironmentVariable("Path", "$currentPath;$InstallDir", "User")
-            Write-Success "Added $InstallDir to user PATH"
-            Write-Info "Restart your terminal for PATH changes to take effect"
-        }
-    }
-}
-
-# Setup auto-start via Task Scheduler
-function Setup-Service {
-    if ($NoService) {
-        Write-Info "Skipping service setup (-NoService specified)"
-        return
-    }
-
-    $taskName = "Syncthing"
-
-    # Check if task exists
-    $existingTask = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-    if ($existingTask) {
-        Write-Warning "Scheduled task '$taskName' already exists"
-        $reply = Read-Host "Replace it? [y/N]"
-        if ($reply -match '^[yY]') {
-            Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
-        } else {
-            return
-        }
-    }
-
-    # Create task
-    $action = New-ScheduledTaskAction -Execute "$InstallDir\syncthing.exe" -Argument "--no-browser"
-    $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
-    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
-    $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
-
-    Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal | Out-Null
-
-    # Start it now
-    Start-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-
-    Write-Success "Created scheduled task '$taskName'"
-    Write-Info "Syncthing will start automatically on login"
-}
-
-# Uninstall
 function Uninstall-Syncthing {
-    Write-Info "Uninstalling scratch-sync/syncthing..."
+    # Find uninstaller - check both possible locations
+    $possiblePaths = @(
+        "$env:LOCALAPPDATA\Programs\Syncthing\uninstall\unins000.exe",
+        "$env:ProgramFiles\Syncthing\uninstall\unins000.exe"
+    )
 
-    # Stop process
-    Stop-Process -Name "syncthing" -Force -ErrorAction SilentlyContinue
-
-    # Remove scheduled task
-    $task = Get-ScheduledTask -TaskName "Syncthing" -ErrorAction SilentlyContinue
-    if ($task) {
-        Unregister-ScheduledTask -TaskName "Syncthing" -Confirm:$false
-        Write-Success "Removed scheduled task"
-    }
-
-    # Remove binary
-    if (Test-Path "$InstallDir\syncthing.exe") {
-        Remove-Item -Path "$InstallDir\syncthing.exe" -Force
-        Write-Success "Removed $InstallDir\syncthing.exe"
-    }
-
-    # Ask about config
-    $configDir = "$env:LOCALAPPDATA\Syncthing"
-    if (Test-Path $configDir) {
-        Write-Warning "Config directory exists: $configDir"
-        $reply = Read-Host "Remove config and data? This cannot be undone! [y/N]"
-        if ($reply -match '^[yY]') {
-            Remove-Item -Path $configDir -Recurse -Force
-            Write-Success "Removed config directory"
-        } else {
-            Write-Info "Config preserved at: $configDir"
+    $uninstaller = $null
+    foreach ($path in $possiblePaths) {
+        if (Test-Path $path) {
+            $uninstaller = $path
+            break
         }
     }
 
-    # Remove from PATH
-    $currentPath = [Environment]::GetEnvironmentVariable("Path", "User")
-    if ($currentPath -like "*$InstallDir*") {
-        $newPath = ($currentPath -split ';' | Where-Object { $_ -ne $InstallDir }) -join ';'
-        [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
-        Write-Success "Removed $InstallDir from PATH"
+    if (-not $uninstaller) {
+        Write-Err "Syncthing uninstaller not found. Is it installed?"
     }
 
-    Write-Success "Uninstall complete"
+    Write-Info "Running uninstaller (silent)..."
+    $process = Start-Process -FilePath $uninstaller -ArgumentList "/silent" -Wait -PassThru
+
+    if ($process.ExitCode -eq 0) {
+        Write-Success "Uninstall complete!"
+    } else {
+        Write-Warning "Uninstaller exited with code: $($process.ExitCode)"
+    }
 }
 
-# Print instructions
 function Print-Instructions {
-    Write-Host ""
     Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
     Write-Host ""
-    Write-Success "scratch-sync installation complete!"
-    Write-Host ""
     Write-Host "  Syncthing binary: $InstallDir\syncthing.exe"
-    Write-Host "  Config directory: $env:LOCALAPPDATA\Syncthing"
+    Write-Host "  Config directory: $ConfigDir"
     Write-Host "  Web UI: http://127.0.0.1:8384"
+    Write-Host ""
+    Write-Host "  Use Start Menu shortcuts to Start/Stop Syncthing"
     Write-Host ""
     Write-Host "  Get your device ID:"
     Write-Host "    syncthing --device-id"
-    Write-Host ""
-    Write-Host "  View status:"
-    Write-Host "    syncthing cli show system"
     Write-Host ""
     Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
 }
 
 # Main
-function Main {
-    Write-Host ""
-    Write-Host "scratch-sync installer" -ForegroundColor Cyan
-    Write-Host ""
+Write-Host ""
+Write-Host "scratch-sync installer" -ForegroundColor Cyan
+Write-Host "(powered by SyncthingWindowsSetup)" -ForegroundColor DarkGray
+Write-Host ""
 
-    if ($Uninstall) {
-        Uninstall-Syncthing
-        return
-    }
-
-    Test-ExistingInstall
+if ($Uninstall) {
+    Uninstall-Syncthing
+} else {
     Install-Syncthing
-    Add-ToPath
-    Setup-Service
-    Print-Instructions
 }
-
-Main

@@ -5,6 +5,7 @@
 # Commands (pass as argument or environment variable):
 #   --uninstall, UNINSTALL=1   - Uninstall syncthing
 #   --upgrade, UPGRADE=1       - Upgrade to latest version
+#   --status, STATUS=1         - Show dependency status only
 #   -y, --yes, YES=1           - Skip confirmation prompts
 #
 # Options (environment variables):
@@ -15,6 +16,7 @@
 #   curl -LsSf https://scratch.tlab.sh/install.sh | sh
 #   curl -LsSf https://scratch.tlab.sh/install.sh | sh -s -- --uninstall
 #   curl -LsSf https://scratch.tlab.sh/install.sh | sh -s -- --upgrade
+#   curl -LsSf https://scratch.tlab.sh/install.sh | sh -s -- --status
 #   curl -LsSf https://scratch.tlab.sh/install.sh | sh -s -- -y
 
 set -e
@@ -56,6 +58,10 @@ error() {
     exit 1
 }
 
+error_noexit() {
+    printf "${RED}error${NC}: %s\n" "$1" >&2
+}
+
 # Read user input, handling piped stdin by reading from /dev/tty
 prompt() {
     if [ "${YES:-0}" = "1" ]; then
@@ -74,6 +80,126 @@ prompt() {
     echo "$REPLY"
 }
 
+# ============================================================================
+# Dependency Status Checks
+# ============================================================================
+
+# Check uv status
+check_uv() {
+    if command -v uv >/dev/null 2>&1; then
+        UV_PATH=$(command -v uv)
+        UV_VERSION=$(uv --version 2>/dev/null | awk '{print $2}' || echo "unknown")
+        printf "  %-12s ${GREEN}installed${NC} %-10s %s\n" "uv" "$UV_VERSION" "$UV_PATH"
+        return 0
+    else
+        printf "  %-12s ${YELLOW}not found${NC}  (optional, for 'uvx scratch-sync' CLI)\n" "uv"
+        return 1
+    fi
+}
+
+# Check tailscale status
+check_tailscale() {
+    if command -v tailscale >/dev/null 2>&1; then
+        TS_PATH=$(command -v tailscale)
+        TS_VERSION=$(tailscale version 2>/dev/null | head -1 || echo "")
+
+        # Check if running and get tailnet info
+        if tailscale status >/dev/null 2>&1; then
+            # Get tailnet info from JSON status
+            TS_JSON=$(tailscale status --json 2>/dev/null || echo "{}")
+            # Parse tailnet name from CurrentTailnet.Name
+            TS_TAILNET=$(echo "$TS_JSON" | grep -A1 '"CurrentTailnet"' | grep '"Name"' | sed 's/.*"Name": *"//;s/".*//')
+            # Parse user login from User object
+            TS_USER=$(echo "$TS_JSON" | grep '"LoginName"' | head -1 | sed 's/.*"LoginName": *"//;s/".*//')
+
+            TS_DETAILS=""
+            if [ -n "$TS_TAILNET" ] && [ -n "$TS_USER" ]; then
+                TS_DETAILS="$TS_TAILNET / $TS_USER"
+            elif [ -n "$TS_TAILNET" ]; then
+                TS_DETAILS="$TS_TAILNET"
+            fi
+
+            printf "  %-12s ${GREEN}running${NC}   %-10s %s\n" "tailscale" "$TS_VERSION" "$TS_DETAILS"
+        else
+            printf "  %-12s ${YELLOW}not running${NC} %-10s %s\n" "tailscale" "$TS_VERSION" "$TS_PATH"
+        fi
+        return 0
+    else
+        printf "  %-12s ${RED}not found${NC}\n" "tailscale"
+        echo ""
+        warn "Tailscale is required for device discovery over private network"
+        echo "  Install from: https://tailscale.com/download"
+        return 1
+    fi
+}
+
+# Check syncthing status
+check_syncthing() {
+    # Find syncthing binary
+    ST_PATH=""
+    if command -v syncthing >/dev/null 2>&1; then
+        ST_PATH=$(command -v syncthing)
+    elif [ -f "$INSTALL_DIR/syncthing" ]; then
+        ST_PATH="$INSTALL_DIR/syncthing"
+    elif [ -f "$HOME/.local/bin/syncthing" ]; then
+        ST_PATH="$HOME/.local/bin/syncthing"
+    fi
+
+    if [ -z "$ST_PATH" ]; then
+        printf "  %-12s ${RED}not found${NC}\n" "syncthing"
+        return 1
+    fi
+
+    # Get version
+    ST_VERSION=$("$ST_PATH" --version 2>/dev/null | head -1 | awk '{print $2}' || echo "unknown")
+
+    # Check if running
+    if pgrep -x syncthing >/dev/null 2>&1; then
+        ST_STATUS="${GREEN}running${NC}"
+    else
+        ST_STATUS="${YELLOW}not running${NC}"
+    fi
+
+    # Check autostart method
+    ST_AUTOSTART=""
+    case "$OS" in
+        macos)
+            if [ -f "$HOME/Library/LaunchAgents/com.syncthing.syncthing.plist" ]; then
+                if launchctl list com.syncthing.syncthing >/dev/null 2>&1; then
+                    ST_AUTOSTART="autostart: launchd"
+                else
+                    ST_AUTOSTART="autostart: launchd (not loaded)"
+                fi
+            fi
+            ;;
+        linux)
+            if command -v systemctl >/dev/null 2>&1; then
+                if systemctl --user is-enabled syncthing >/dev/null 2>&1; then
+                    ST_AUTOSTART="autostart: systemd"
+                fi
+            fi
+            ;;
+    esac
+
+    ST_DETAILS="$ST_PATH"
+    if [ -n "$ST_AUTOSTART" ]; then
+        ST_DETAILS="$ST_PATH / $ST_AUTOSTART"
+    fi
+
+    printf "  %-12s $ST_STATUS %-10s %s\n" "syncthing" "$ST_VERSION" "$ST_DETAILS"
+    return 0
+}
+
+# Show dependency status
+show_status() {
+    echo ""
+    echo "Dependencies"
+    echo ""
+    check_uv
+    check_tailscale
+    check_syncthing
+}
+
 # Parse command line arguments
 parse_args() {
     while [ $# -gt 0 ]; do
@@ -83,6 +209,9 @@ parse_args() {
                 ;;
             --upgrade)
                 UPGRADE=1
+                ;;
+            --status)
+                STATUS=1
                 ;;
             -y|--yes)
                 YES=1
@@ -498,9 +627,31 @@ print_instructions() {
     echo ""
     success "scratch-sync installation complete!"
     echo ""
+
+    # Show dependency status
+    show_status
+
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
     echo "  Syncthing binary: $INSTALL_DIR/syncthing"
     echo "  Config directory: $CONFIG_DIR"
-    echo "  Web UI: http://127.0.0.1:8384"
+    echo ""
+
+    # Dashboard setup reminder
+    echo "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    printf "${YELLOW}Important:${NC} Set up a password for the Syncthing dashboard\n"
+    echo ""
+    echo "  The dashboard is accessible at:"
+    echo "    ${BLUE}https://127.0.0.1:8384/${NC}"
+    echo ""
+    echo "  On first visit:"
+    echo "    1. Accept the self-signed certificate warning"
+    echo "    2. Go to Actions > Settings > GUI"
+    echo "    3. Set a username and password"
+    echo ""
+    echo "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
     echo "  Get your device ID:"
     echo "    syncthing device-id"
@@ -521,6 +672,13 @@ main() {
     echo ""
     echo "scratch-sync installer"
     echo ""
+
+    # Handle status check
+    if [ "${STATUS:-0}" = "1" ]; then
+        detect_platform
+        show_status
+        exit 0
+    fi
 
     # Handle uninstall
     if [ "${UNINSTALL:-0}" = "1" ]; then

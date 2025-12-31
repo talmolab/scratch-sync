@@ -1,0 +1,59 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Run CLI help
+        run: uv run python -m scratch_sync --help
+
+      - name: Test install script syntax (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          /bin/sh -n install.sh
+          echo "Syntax OK"
+
+  test-windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Run CLI help
+        run: uv run python -m scratch_sync --help
+
+      - name: Test PowerShell script syntax
+        run: |
+          $null = [System.Management.Automation.PSParser]::Tokenize((Get-Content install.ps1 -Raw), [ref]$null)
+          Write-Host "Syntax OK"

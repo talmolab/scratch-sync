@@ -255,9 +255,58 @@ def init(path: Path | None, name: str | None):
     console.print("  2. On other devices, run [cyan]scratch-sync init[/] in the same repo")
 
 
+def _print_discovery_troubleshooting(failed_peers: list) -> None:
+    """Print troubleshooting tips based on discovery failures."""
+    # Categorize failures
+    refused = []
+    timeouts = []
+    other = []
+
+    for peer, result in failed_peers:
+        if result.status == discovery.DiscoveryStatus.CONNECTION_REFUSED:
+            refused.append(peer)
+        elif result.status == discovery.DiscoveryStatus.TIMEOUT:
+            timeouts.append(peer)
+        else:
+            other.append(peer)
+
+    console.print("[bold]Troubleshooting:[/]")
+
+    if refused:
+        console.print()
+        console.print(f"  [yellow]Not listening[/] on {len(refused)} peer(s):")
+        for peer in refused:
+            console.print(f"    • {peer.hostname}")
+        console.print()
+        console.print("  [dim]This means port 8384 is not open. Possible causes:[/]")
+        console.print("    • Syncthing not installed")
+        console.print("    • Syncthing not running")
+        console.print("    • Syncthing GUI bound to localhost only")
+        console.print()
+        console.print("  [dim]On those machines, install/start Syncthing and run:[/]")
+        console.print("    [cyan]scratch-sync init[/]")
+
+    if timeouts:
+        console.print()
+        console.print(f"  [dim]Timeout[/] on {len(timeouts)} peer(s):")
+        for peer in timeouts:
+            console.print(f"    • {peer.hostname}")
+        console.print()
+        console.print("  [dim]This could mean:[/]")
+        console.print("    • Syncthing is not running")
+        console.print("    • Firewall blocking port 8384")
+        console.print("    • Network connectivity issues")
+
+    if other and not refused and not timeouts:
+        console.print()
+        console.print("  • Ensure Syncthing is running on other devices")
+        console.print("  • Run [cyan]scratch-sync init[/] on other devices to configure GUI binding")
+
+
 @main.command()
 @click.option("--timeout", "-t", default=3.0, show_default=True, help="Discovery timeout in seconds")
-def pair(timeout: float):
+@click.option("--yes", "-y", is_flag=True, help="Auto-accept all discovered devices without prompting")
+def pair(timeout: float, yes: bool):
     """Discover and pair with other devices on the Tailscale network.
 
     Scans your [bold]Tailscale[/] network for other machines running [bold]Syncthing[/]
@@ -290,24 +339,30 @@ def pair(timeout: float):
 
     # Try to discover Syncthing on each peer using the noauth endpoint
     discovered = []
+    failed_peers = []  # Track failures for troubleshooting
     for peer in peers:
         console.print(f"  Checking [cyan]{peer.hostname}[/] ({peer.tailscale_ip})...", end="")
-        info = discovery.discover_syncthing_peer(peer.tailscale_ip, timeout=timeout)
-        if info:
+        result = discovery.discover_syncthing_peer_detailed(peer.tailscale_ip, timeout=timeout)
+
+        if result.status == discovery.DiscoveryStatus.SUCCESS:
             console.print(" [green]found![/]")
-            info["tailscale_hostname"] = peer.hostname
-            discovered.append(info)
+            result.peer_info["tailscale_hostname"] = peer.hostname
+            discovered.append(result.peer_info)
+        elif result.status == discovery.DiscoveryStatus.CONNECTION_REFUSED:
+            console.print(" [yellow]not listening[/]")
+            failed_peers.append((peer, result))
+        elif result.status == discovery.DiscoveryStatus.TIMEOUT:
+            console.print(" [dim]timeout[/]")
+            failed_peers.append((peer, result))
         else:
             console.print(" [dim]no Syncthing[/]")
+            failed_peers.append((peer, result))
 
     if not discovered:
         console.print()
         console.print("[dim]No Syncthing peers discovered.[/]")
         console.print()
-        console.print("[bold]Troubleshooting:[/]")
-        console.print("  • Ensure Syncthing is running on other devices")
-        console.print("  • Run [cyan]scratch-sync init[/] on other devices to configure GUI binding")
-        console.print("  • Or manually: [dim]syncthing cli config gui raw-address set 0.0.0.0:8384[/]")
+        _print_discovery_troubleshooting(failed_peers)
         return
 
     console.print()
@@ -319,13 +374,43 @@ def pair(timeout: float):
         device_id = info.get("syncthing_device_id", "unknown")
         console.print(f"    [dim]Device ID: {device_id[:20]}...[/]")
 
-    console.print()
-    if not click.confirm("Pair with these devices?"):
-        return
+    # Select which devices to pair with
+    if yes:
+        # Auto-accept all discovered devices
+        selected = discovered
+    else:
+        # Interactive checkbox selection
+        import questionary
+        from questionary import Choice
 
-    # Pair with each
+        choices = [
+            Choice(
+                title=f"{info.get('hostname') or info.get('tailscale_hostname')} ({info.get('tailscale_ip')}) - {info.get('syncthing_device_id', '')[:15]}...",
+                value=info,
+                checked=True,  # Pre-select all by default
+            )
+            for info in discovered
+        ]
+
+        console.print()
+        selected = questionary.checkbox(
+            "Select devices to pair with:",
+            choices=choices,
+            instruction="(↑↓ navigate, Space toggle, a toggle all, Enter confirm)",
+        ).ask()
+
+        if selected is None:
+            # User cancelled (Ctrl+C or Escape)
+            console.print("[yellow]Cancelled[/]")
+            return
+
+        if not selected:
+            console.print("[yellow]No devices selected[/]")
+            return
+
+    # Pair with selected devices
     paired_device_ids = []
-    for info in discovered:
+    for info in selected:
         hostname = info.get("hostname") or info.get("tailscale_hostname")
         if discovery.auto_pair_with_peer(info):
             console.print(f"  [green]Paired with {hostname}[/]")

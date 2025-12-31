@@ -188,15 +188,18 @@ def api_get(endpoint: str) -> dict | None:
     if not api_key:
         return None
 
-    url = f"http://localhost:8384{endpoint}"
     headers = {"X-API-Key": api_key}
-    try:
-        with httpx.Client(timeout=5.0) as client:
-            response = client.get(url, headers=headers)
-            if response.status_code == 200:
-                return response.json()
-    except Exception:
-        pass
+
+    # Try HTTPS first (Syncthing defaults to HTTPS), then fall back to HTTP
+    for scheme in ("https", "http"):
+        url = f"{scheme}://localhost:8384{endpoint}"
+        try:
+            with httpx.Client(timeout=5.0, verify=False) as client:
+                response = client.get(url, headers=headers, follow_redirects=True)
+                if response.status_code == 200:
+                    return response.json()
+        except Exception:
+            continue
     return None
 
 
@@ -223,3 +226,127 @@ def get_system_status() -> dict | None:
 def get_pending_devices() -> dict:
     """Get pending device pair requests."""
     return api_get("/rest/cluster/pending/devices") or {}
+
+
+def get_syncthing_version() -> str | None:
+    """Get the Syncthing version string."""
+    # Try REST API first (more reliable if running)
+    version_info = api_get("/rest/system/version")
+    if version_info:
+        return version_info.get("version")
+
+    # Fall back to CLI
+    binary = find_syncthing()
+    if not binary:
+        return None
+
+    try:
+        result = subprocess.run([binary, "--version"], capture_output=True, text=True)
+        if result.returncode == 0:
+            # Output is like "syncthing v1.28.0 ..."
+            parts = result.stdout.strip().split()
+            if len(parts) >= 2:
+                return parts[1].lstrip("v")
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return None
+
+
+def is_syncthing_running() -> bool:
+    """Check if Syncthing is currently running by testing the REST API."""
+    status = get_system_status()
+    return status is not None
+
+
+def get_service_status() -> dict:
+    """Get Syncthing service/autostart status.
+
+    Returns a dict with:
+        - enabled: bool | None - Whether autostart is enabled
+        - method: str | None - How it's configured (launchd, systemd, etc.)
+        - details: str | None - Additional info
+    """
+    result = {
+        "enabled": None,
+        "method": None,
+        "details": None,
+    }
+
+    if sys.platform == "darwin":
+        # macOS: Check launchd plist
+        plist_path = Path.home() / "Library/LaunchAgents/syncthing.plist"
+        if plist_path.exists():
+            result["method"] = "launchd"
+            # Check if loaded
+            try:
+                proc = subprocess.run(
+                    ["launchctl", "list", "syncthing"],
+                    capture_output=True,
+                    text=True,
+                )
+                result["enabled"] = proc.returncode == 0
+                if result["enabled"]:
+                    result["details"] = "Loaded via launchd"
+                else:
+                    result["details"] = "Plist exists but not loaded"
+            except Exception:
+                result["details"] = "Plist exists"
+        else:
+            # Also check for homebrew-managed service
+            try:
+                proc = subprocess.run(
+                    ["brew", "services", "list"],
+                    capture_output=True,
+                    text=True,
+                )
+                if proc.returncode == 0:
+                    for line in proc.stdout.split("\n"):
+                        if "syncthing" in line.lower():
+                            result["method"] = "homebrew"
+                            result["enabled"] = "started" in line.lower()
+                            result["details"] = line.strip()
+                            break
+            except FileNotFoundError:
+                pass
+
+    elif sys.platform == "linux":
+        # Linux: Check systemd user service
+        try:
+            proc = subprocess.run(
+                ["systemctl", "--user", "is-enabled", "syncthing"],
+                capture_output=True,
+                text=True,
+            )
+            result["method"] = "systemd"
+            result["enabled"] = proc.returncode == 0
+            result["details"] = proc.stdout.strip() if proc.stdout else None
+        except FileNotFoundError:
+            pass
+
+    elif sys.platform == "win32":
+        # Windows: Check for scheduled task or startup entry
+        try:
+            # Check Task Scheduler
+            proc = subprocess.run(
+                ["schtasks", "/Query", "/TN", "Syncthing"],
+                capture_output=True,
+                text=True,
+            )
+            if proc.returncode == 0:
+                result["method"] = "task_scheduler"
+                result["enabled"] = True
+                result["details"] = "Scheduled task exists"
+        except FileNotFoundError:
+            pass
+
+        if result["method"] is None:
+            # Check startup folder
+            startup_path = Path(os.environ.get("APPDATA", "")) / "Microsoft/Windows/Start Menu/Programs/Startup"
+            syncthing_shortcut = startup_path / "Syncthing.lnk"
+            if syncthing_shortcut.exists():
+                result["method"] = "startup_folder"
+                result["enabled"] = True
+                result["details"] = "Startup shortcut exists"
+
+    return result

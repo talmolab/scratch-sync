@@ -320,12 +320,7 @@ setup_service_macos() {
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
-    <dict>
-        <key>Crashed</key>
-        <true/>
-        <key>SuccessfulExit</key>
-        <false/>
-    </dict>
+    <true/>
     <key>ProcessType</key>
     <string>Background</string>
     <key>StandardOutPath</key>

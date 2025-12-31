@@ -10,7 +10,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from scratch_sync import syncthing, tailscale, discovery
+from scratch_sync import syncthing, tailscale, discovery, uv
 
 # Rich console for styled output
 console = Console()
@@ -387,31 +387,133 @@ def _format_time(iso_time: str) -> str:
         return iso_time[:19] if len(iso_time) > 19 else iso_time
 
 
+def _format_uptime(seconds: int) -> str:
+    """Format uptime in seconds to human readable."""
+    if seconds < 60:
+        return f"{seconds}s"
+    elif seconds < 3600:
+        return f"{seconds // 60}m"
+    elif seconds < 86400:
+        hours = seconds // 3600
+        mins = (seconds % 3600) // 60
+        return f"{hours}h {mins}m" if mins else f"{hours}h"
+    else:
+        days = seconds // 86400
+        hours = (seconds % 86400) // 3600
+        return f"{days}d {hours}h" if hours else f"{days}d"
+
+
 @main.command()
 def status():
     """Show current sync status.
 
     Displays information about:
+      • Dependency status (uv, Tailscale, Syncthing)
       • Your device ID and Syncthing version
       • Paired devices and their connection status
       • All [cyan]scratch-*[/] folders and their sync state
     """
-    if not syncthing.find_syncthing():
-        console.print("[red]Error:[/] Syncthing not installed", style="red")
+    # === Dependencies Section ===
+    console.print("[bold]Dependencies[/]")
+    console.print()
+
+    dep_table = Table(box=None, padding=(0, 2), show_header=False)
+    dep_table.add_column("Tool", style="cyan")
+    dep_table.add_column("Status")
+    dep_table.add_column("Details", style="dim")
+
+    # --- uv ---
+    uv_path = uv.find_uv()
+    if uv_path:
+        uv_version = uv.get_uv_version()
+        dep_table.add_row(
+            "uv",
+            f"[green]installed[/] {uv_version or ''}",
+            uv_path,
+        )
+    else:
+        dep_table.add_row("uv", "[red]not found[/]", "")
+
+    # --- Tailscale ---
+    ts_path = tailscale.find_tailscale()
+    if ts_path:
+        ts_version = tailscale.get_tailscale_version()
+        ts_running = tailscale.is_tailscale_running()
+        ts_info = tailscale.get_tailnet_info()
+
+        if ts_running and ts_info:
+            status_parts = [f"[green]running[/] {ts_version or ''}"]
+            details_parts = []
+            if ts_info.tailnet_name:
+                details_parts.append(ts_info.tailnet_name)
+            if ts_info.user_login:
+                details_parts.append(ts_info.user_login)
+            dep_table.add_row("tailscale", " ".join(status_parts), " / ".join(details_parts) if details_parts else "")
+        elif ts_running:
+            dep_table.add_row("tailscale", f"[green]running[/] {ts_version or ''}", "")
+        else:
+            dep_table.add_row("tailscale", f"[yellow]not running[/] {ts_version or ''}", ts_path)
+    else:
+        dep_table.add_row("tailscale", "[red]not found[/]", "")
+
+    # --- Syncthing ---
+    st_path = syncthing.find_syncthing()
+    if st_path:
+        st_running = syncthing.is_syncthing_running()
+        st_version = syncthing.get_syncthing_version()
+        st_service = syncthing.get_service_status()
+
+        if st_running:
+            status_str = f"[green]running[/] {st_version or ''}"
+        else:
+            status_str = f"[yellow]not running[/] {st_version or ''}"
+
+        details_parts = [st_path]
+        if st_service.get("method"):
+            method = st_service["method"]
+            enabled = st_service.get("enabled")
+            if enabled:
+                details_parts.append(f"autostart: {method}")
+            else:
+                details_parts.append(f"autostart: {method} (disabled)")
+
+        dep_table.add_row("syncthing", status_str, " / ".join(details_parts))
+    else:
+        dep_table.add_row("syncthing", "[red]not found[/]", "")
+
+    console.print(dep_table)
+
+    # Exit early if Syncthing is not available
+    if not st_path:
+        console.print()
+        console.print("[red]Error:[/] Syncthing not installed. Run the installer first:")
+        console.print("  [cyan]curl -LsSf https://scratch.tlab.sh/install.sh | sh[/]")
         sys.exit(1)
 
-    # Get system status from REST API
+    if not syncthing.is_syncthing_running():
+        console.print()
+        console.print("[yellow]Warning:[/] Syncthing is not running. Start it to see sync status.")
+        return
+
+    # === This Device Section ===
+    console.print()
     system_status = syncthing.get_system_status()
 
     if system_status:
         device_id = system_status.get("myID", "unknown")
-        version = system_status.get("version", "unknown")
-        uptime = system_status.get("uptime", 0) // 60
+        uptime_secs = system_status.get("uptime", 0)
+
+        # Get dashboard URL
+        gui_address = syncthing.get_gui_address() or "127.0.0.1:8384"
+        # Normalize to localhost for display
+        if gui_address.startswith("0.0.0.0:"):
+            gui_address = "127.0.0.1:" + gui_address.split(":")[1]
+        dashboard_url = f"https://{gui_address}/"
 
         console.print(Panel(
-            f"[cyan]Device ID:[/] {device_id}\n"
-            f"[cyan]Version:[/]   Syncthing {version}\n"
-            f"[cyan]Uptime:[/]    {uptime} minutes",
+            f"[cyan]Device ID:[/]  {device_id}\n"
+            f"[cyan]Uptime:[/]     {_format_uptime(uptime_secs)}\n"
+            f"[cyan]Dashboard:[/]  [link={dashboard_url}]{dashboard_url}[/link]",
             title="This Device",
             border_style="blue",
         ))

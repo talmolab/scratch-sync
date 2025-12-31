@@ -276,6 +276,16 @@ launchctl load ~/Library/LaunchAgents/com.syncthing.syncthing.plist</code></pre>
         }, 2000);
       });
     }
+
+    // Auto-detect OS and select appropriate tab
+    (function() {
+      const platform = navigator.platform.toLowerCase();
+      const userAgent = navigator.userAgent.toLowerCase();
+      if (platform.includes('win') || userAgent.includes('windows')) {
+        showTab('windows');
+      }
+      // macOS and Linux default to 'unix' tab (already active)
+    })();
   </script>
 </body>
 </html>

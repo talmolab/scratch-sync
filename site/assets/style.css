@@ -1,27 +1,16 @@
 /* scratch-sync - Minimal styling inspired by rustup.rs */
+/* Dark theme only */
 
 :root {
-  --bg: #ffffff;
-  --bg-code: #1a1a2e;
-  --text: #24292f;
-  --text-muted: #656d76;
+  --bg: #0d1117;
+  --bg-code: #161b22;
+  --text: #e6edf3;
+  --text-muted: #8b949e;
   --text-code: #e6e6e6;
-  --accent: #0969da;
-  --accent-hover: #0550ae;
-  --border: #d0d7de;
-  --success: #1a7f37;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0d1117;
-    --bg-code: #161b22;
-    --text: #e6edf3;
-    --text-muted: #8b949e;
-    --accent: #58a6ff;
-    --accent-hover: #79c0ff;
-    --border: #30363d;
-  }
+  --accent: #58a6ff;
+  --accent-hover: #79c0ff;
+  --border: #30363d;
+  --success: #3fb950;
 }
 
 * {

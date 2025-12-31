@@ -15,6 +15,64 @@ from scratch_sync import syncthing, tailscale, discovery, uv
 # Rich console for styled output
 console = Console()
 
+# Documentation URL
+DOCS_URL = "https://scratch.tlab.sh"
+
+
+def get_install_instructions() -> tuple[str, str]:
+    """Get OS-appropriate install command and docs URL.
+
+    Returns:
+        Tuple of (install_command, docs_url)
+    """
+    if sys.platform == "win32":
+        install_cmd = f"iwr -useb {DOCS_URL}/install.ps1 | iex"
+    else:
+        # macOS and Linux
+        install_cmd = f"curl -LsSf {DOCS_URL}/install.sh | sh"
+    return install_cmd, DOCS_URL
+
+
+def print_install_instructions() -> None:
+    """Print OS-appropriate install instructions with docs link."""
+    install_cmd, docs_url = get_install_instructions()
+    console.print()
+    console.print("[bold]To install scratch-sync dependencies:[/]")
+    console.print(f"  [cyan]{install_cmd}[/]")
+    console.print()
+    console.print(f"[dim]For more information, see: {docs_url}[/]")
+
+
+def require_syncthing() -> None:
+    """Check that Syncthing is installed, exit with helpful message if not."""
+    if syncthing.find_syncthing():
+        return
+
+    console.print("[red]Error:[/] Syncthing is not installed.")
+    console.print()
+    console.print("[dim]scratch-sync requires Syncthing to sync folders across machines.[/]")
+    print_install_instructions()
+    sys.exit(1)
+
+
+def require_tailscale() -> None:
+    """Check that Tailscale is installed and running, exit with helpful message if not."""
+    if not tailscale.find_tailscale():
+        console.print("[red]Error:[/] Tailscale is not installed.")
+        console.print()
+        console.print("[dim]scratch-sync uses Tailscale to securely connect your machines.[/]")
+        console.print("[dim]Install Tailscale from: https://tailscale.com/download[/]")
+        console.print()
+        _, docs_url = get_install_instructions()
+        console.print(f"[dim]For more information, see: {docs_url}[/]")
+        sys.exit(1)
+
+    if not tailscale.is_tailscale_running():
+        console.print("[red]Error:[/] Tailscale is not running.")
+        console.print()
+        console.print("[dim]Start Tailscale and ensure you're connected to your tailnet.[/]")
+        sys.exit(1)
+
 # Configure rich-click styling
 click.rich_click.THEME = "nord-modern"
 click.rich_click.TEXT_MARKUP = "rich"
@@ -163,10 +221,7 @@ def init(path: Path | None, name: str | None):
       • Adds [cyan]scratch/[/] to [dim].gitignore[/]
     """
     # Check syncthing is available
-    if not syncthing.find_syncthing():
-        console.print("[red]Error:[/] Syncthing not installed. Run the installer first:")
-        console.print("  [cyan]curl -LsSf https://scratch.tlab.sh/install.sh | sh[/]")
-        sys.exit(1)
+    require_syncthing()
 
     # Determine path
     if path is None:
@@ -318,13 +373,8 @@ def pair(timeout: float, yes: bool):
       • Syncthing must be running on other devices
       • Syncthing GUI must be bound to 0.0.0.0:8384 (run [cyan]scratch-sync init[/] first)
     """
-    if not tailscale.is_tailscale_running():
-        console.print("[red]Error:[/] Tailscale is not running")
-        sys.exit(1)
-
-    if not syncthing.find_syncthing():
-        console.print("[red]Error:[/] Syncthing not installed")
-        sys.exit(1)
+    require_tailscale()
+    require_syncthing()
 
     console.print("[bold]Discovering Syncthing peers on Tailscale network...[/]")
     console.print()
@@ -580,8 +630,10 @@ def status():
     # Exit early if Syncthing is not available
     if not st_path:
         console.print()
-        console.print("[red]Error:[/] Syncthing not installed. Run the installer first:")
-        console.print("  [cyan]curl -LsSf https://scratch.tlab.sh/install.sh | sh[/]")
+        console.print("[red]Error:[/] Syncthing is not installed.")
+        console.print()
+        console.print("[dim]scratch-sync requires Syncthing to sync folders across machines.[/]")
+        print_install_instructions()
         sys.exit(1)
 
     if not syncthing.is_syncthing_running():
@@ -801,9 +853,7 @@ def list_folders():
 
     Shows all Syncthing folders with IDs starting with [cyan]scratch-[/].
     """
-    if not syncthing.find_syncthing():
-        console.print("[red]Error:[/] Syncthing not installed")
-        sys.exit(1)
+    require_syncthing()
 
     folders = syncthing.list_folders()
     scratch_folders = [f for f in folders if f.startswith("scratch-")]

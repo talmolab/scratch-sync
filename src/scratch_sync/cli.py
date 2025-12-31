@@ -316,12 +316,28 @@ def pair(timeout: float):
         return
 
     # Pair with each
+    paired_device_ids = []
     for info in discovered:
         hostname = info.get("hostname") or info.get("tailscale_hostname")
         if discovery.auto_pair_with_peer(info):
             console.print(f"  [green]Paired with {hostname}[/]")
+            paired_device_ids.append(info.get("syncthing_device_id"))
         else:
             console.print(f"  [red]Failed to pair with {hostname}[/]")
+
+    # Add newly paired devices to all existing scratch folders
+    if paired_device_ids:
+        folders = syncthing.list_folders()
+        scratch_folders = [f for f in folders if f.startswith("scratch-")]
+
+        if scratch_folders:
+            console.print()
+            console.print("[bold]Adding devices to scratch folders...[/]")
+            for folder_id in scratch_folders:
+                for device_id in paired_device_ids:
+                    if device_id:
+                        syncthing.add_device_to_folder(folder_id, device_id)
+                console.print(f"  [green]Updated {folder_id}[/]")
 
     console.print()
     console.print("[bold green]Done![/] Devices are now paired.")

@@ -141,11 +141,7 @@ def add_device_to_folder(folder_id: str, device_id: str) -> bool:
 
 def get_folder_status(folder_id: str) -> dict | None:
     """Get the status of a folder."""
-    result = run_syncthing_cli("show", "folder-status", folder_id)
-    if result.returncode != 0:
-        return None
-
-    return json.loads(result.stdout)
+    return api_get(f"/rest/db/status?folder={folder_id}")
 
 
 def get_connections() -> dict:

@@ -257,7 +257,8 @@ def init(path: Path | None, name: str | None):
 
 @main.command()
 @click.option("--timeout", "-t", default=3.0, show_default=True, help="Discovery timeout in seconds")
-def pair(timeout: float):
+@click.option("--yes", "-y", is_flag=True, help="Auto-accept all discovered devices without prompting")
+def pair(timeout: float, yes: bool):
     """Discover and pair with other devices on the Tailscale network.
 
     Scans your [bold]Tailscale[/] network for other machines running [bold]Syncthing[/]
@@ -319,13 +320,43 @@ def pair(timeout: float):
         device_id = info.get("syncthing_device_id", "unknown")
         console.print(f"    [dim]Device ID: {device_id[:20]}...[/]")
 
-    console.print()
-    if not click.confirm("Pair with these devices?"):
-        return
+    # Select which devices to pair with
+    if yes:
+        # Auto-accept all discovered devices
+        selected = discovered
+    else:
+        # Interactive checkbox selection
+        import questionary
+        from questionary import Choice
 
-    # Pair with each
+        choices = [
+            Choice(
+                title=f"{info.get('hostname') or info.get('tailscale_hostname')} ({info.get('tailscale_ip')}) - {info.get('syncthing_device_id', '')[:15]}...",
+                value=info,
+                checked=True,  # Pre-select all by default
+            )
+            for info in discovered
+        ]
+
+        console.print()
+        selected = questionary.checkbox(
+            "Select devices to pair with:",
+            choices=choices,
+            instruction="(↑↓ navigate, Space toggle, a toggle all, Enter confirm)",
+        ).ask()
+
+        if selected is None:
+            # User cancelled (Ctrl+C or Escape)
+            console.print("[yellow]Cancelled[/]")
+            return
+
+        if not selected:
+            console.print("[yellow]No devices selected[/]")
+            return
+
+    # Pair with selected devices
     paired_device_ids = []
-    for info in discovered:
+    for info in selected:
         hostname = info.get("hostname") or info.get("tailscale_hostname")
         if discovery.auto_pair_with_peer(info):
             console.print(f"  [green]Paired with {hostname}[/]")

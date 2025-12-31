@@ -1,8 +1,75 @@
 """Tailscale CLI interactions."""
 
 import json
+import shutil
 import subprocess
 from dataclasses import dataclass
+
+
+def find_tailscale() -> str | None:
+    """Find tailscale binary in PATH."""
+    return shutil.which("tailscale")
+
+
+def get_tailscale_version() -> str | None:
+    """Get the Tailscale version string."""
+    try:
+        result = subprocess.run(
+            ["tailscale", "version"],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            # Output is like "1.76.6\n  tailscale commit: ..."
+            version_line = result.stdout.strip().split("\n")[0]
+            return version_line.strip()
+    except FileNotFoundError:
+        pass
+    return None
+
+
+@dataclass
+class TailnetInfo:
+    """Information about the current Tailscale connection."""
+
+    tailnet_name: str | None
+    user_login: str | None
+    user_name: str | None
+    dns_name: str | None
+    hostname: str | None
+    backend_state: str | None
+
+
+def get_tailnet_info() -> TailnetInfo | None:
+    """Get information about the current Tailscale tailnet and user."""
+    try:
+        result = subprocess.run(
+            ["tailscale", "status", "--json"],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            return None
+
+        data = json.loads(result.stdout)
+        self_info = data.get("Self", {})
+        user_info = data.get("User", {})
+        current_tailnet = data.get("CurrentTailnet", {})
+
+        # Get user info from the User dict using Self's UserID
+        user_id = str(self_info.get("UserID", ""))
+        user_data = user_info.get(user_id, {})
+
+        return TailnetInfo(
+            tailnet_name=current_tailnet.get("Name"),
+            user_login=user_data.get("LoginName"),
+            user_name=user_data.get("DisplayName"),
+            dns_name=self_info.get("DNSName", "").rstrip("."),
+            hostname=self_info.get("HostName"),
+            backend_state=data.get("BackendState"),
+        )
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
 
 
 @dataclass

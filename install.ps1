@@ -1,19 +1,29 @@
 # scratch-sync installer for Windows
-# Usage: iwr -useb https://scratch.tlab.sh/install.ps1 | iex
-#
 # This is a wrapper around SyncthingWindowsSetup by Bill Stewart
 # https://github.com/Bill-Stewart/SyncthingWindowsSetup
 #
-# Options:
-#   -Uninstall    Uninstall syncthing
-#   -AllUsers     Install as Windows service (requires admin)
-#   -Status       Show dependency status only
+# Direct execution:
+#   .\install.ps1              # Install for current user
+#   .\install.ps1 -Uninstall   # Uninstall
+#   .\install.ps1 -AllUsers    # Install as Windows service (requires admin)
+#   .\install.ps1 -Status      # Show dependency status only
+#
+# Remote execution:
+#   iwr -useb https://scratch.tlab.sh/install.ps1 | iex
+#   $env:UNINSTALL=1; iwr -useb https://scratch.tlab.sh/install.ps1 | iex
+#   $env:ALLUSERS=1; iwr -useb https://scratch.tlab.sh/install.ps1 | iex
+#   $env:STATUS=1; iwr -useb https://scratch.tlab.sh/install.ps1 | iex
 
 param(
     [switch]$Uninstall,
     [switch]$AllUsers,
     [switch]$Status
 )
+
+# Support environment variables for piped execution (iwr | iex)
+if ($env:UNINSTALL -eq "1") { $Uninstall = $true }
+if ($env:ALLUSERS -eq "1") { $AllUsers = $true }
+if ($env:STATUS -eq "1") { $Status = $true }
 
 $ErrorActionPreference = "Stop"
 

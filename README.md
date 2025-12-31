@@ -53,20 +53,45 @@ Dependencies
 
 After installation, remember to **set up a password** for the Syncthing dashboard at `http://127.0.0.1:8384/`.
 
-**Uninstall:**
+**Uninstall (macOS / Linux):**
 ```bash
-# macOS / Linux
 curl -LsSf https://scratch.tlab.sh/install.sh | sh -s -- --uninstall
 ```
 
+**Uninstall (Windows):**
 ```powershell
-# Windows
 $env:UNINSTALL=1; iwr -useb https://scratch.tlab.sh/install.ps1 | iex
 ```
 
 **Check dependency status:**
 ```bash
 curl -LsSf https://scratch.tlab.sh/install.sh | sh -s -- --status
+```
+
+### Install the CLI
+
+The `scratch-sync` CLI helps you manage synced folders. Choose your preferred installation method:
+
+**Permanent install (recommended):**
+```bash
+uv tool install scratch-sync
+```
+This installs `scratch-sync` globally so you can run it from anywhere.
+
+**Run without installing:**
+```bash
+uvx scratch-sync --help
+```
+If you prefer not to install permanently, use `uvx` to run the latest version on-demand.
+
+**Update to latest version:**
+```bash
+uv tool upgrade scratch-sync
+```
+
+**Uninstall:**
+```bash
+uv tool uninstall scratch-sync
 ```
 
 ### Usage

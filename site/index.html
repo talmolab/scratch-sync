@@ -50,18 +50,25 @@
       <strong>Install Syncthing</strong> using the command above. This downloads Syncthing and sets it up as a background service.
     </li>
     <li>
+      <strong>Install the CLI</strong> (or use <code>uvx</code> to run without installing):
+      <div class="code-block">
+        <pre><code>uv tool install scratch-sync</code></pre>
+        <button class="copy-btn" onclick="copyCode(this, 'uv tool install scratch-sync')">Copy</button>
+      </div>
+    </li>
+    <li>
       <strong>Initialize in a git repo</strong> with a scratch/ folder:
       <div class="code-block">
         <pre><code>cd ~/code/my-project
-uvx scratch-sync init</code></pre>
-        <button class="copy-btn" onclick="copyCode(this, 'uvx scratch-sync init')">Copy</button>
+scratch-sync init</code></pre>
+        <button class="copy-btn" onclick="copyCode(this, 'scratch-sync init')">Copy</button>
       </div>
     </li>
     <li>
       <strong>Pair with other devices</strong> on your Tailscale network:
       <div class="code-block">
-        <pre><code>uvx scratch-sync pair</code></pre>
-        <button class="copy-btn" onclick="copyCode(this, 'uvx scratch-sync pair')">Copy</button>
+        <pre><code>scratch-sync pair</code></pre>
+        <button class="copy-btn" onclick="copyCode(this, 'scratch-sync pair')">Copy</button>
       </div>
     </li>
   </ol>
@@ -116,8 +123,26 @@ uvx scratch-sync init</code></pre>
   <ul>
     <li><a href="https://tailscale.com/download">Tailscale</a> installed and connected on all machines</li>
     <li>All machines on the same Tailnet</li>
-    <li><a href="https://github.com/astral-sh/uv">uv</a> (for the CLI) &mdash; or use pip: <code>pip install scratch-sync</code></li>
+    <li><a href="https://github.com/astral-sh/uv">uv</a> (for the CLI)</li>
   </ul>
+
+  <h3>Install the CLI</h3>
+
+  <p>Permanent install (recommended):</p>
+
+  <div class="code-block">
+    <pre><code>uv tool install scratch-sync</code></pre>
+  </div>
+
+  <p>Or run without installing:</p>
+
+  <div class="code-block">
+    <pre><code>uvx scratch-sync --help</code></pre>
+  </div>
+
+  <p style="color: var(--text-muted); font-size: 0.9rem;">
+    Update: <code>uv tool upgrade scratch-sync</code> &nbsp;|&nbsp; Uninstall: <code>uv tool uninstall scratch-sync</code>
+  </p>
 
   <footer>
     <a href="https://github.com/talmolab/scratch-sync">GitHub</a>

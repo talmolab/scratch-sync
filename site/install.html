@@ -237,21 +237,50 @@ Invoke-WebRequest -Uri https://scratch.tlab.sh/install.ps1 -OutFile install.ps1
 
   <h2>Installing the CLI</h2>
 
-  <p>The scratch-sync CLI is a Python package that helps you manage synced folders. Install it with:</p>
+  <p>The scratch-sync CLI is a Python package that helps you manage synced folders. Choose your preferred installation method:</p>
+
+  <h3>Permanent Install (Recommended)</h3>
+
+  <p>Install globally so you can run <code>scratch-sync</code> from anywhere:</p>
 
   <div class="code-block">
-    <pre><code># Using uvx (recommended - no install needed)
-uvx scratch-sync --help
+    <pre><code>uv tool install scratch-sync</code></pre>
+    <button class="copy-btn" onclick="copyCode(this, 'uv tool install scratch-sync')">Copy</button>
+  </div>
 
-# Or install with pip
-pip install scratch-sync
+  <p>This creates an isolated environment for scratch-sync and adds the executable to your PATH.</p>
 
-# Or with uv
-uv pip install scratch-sync</code></pre>
+  <h3>Run Without Installing</h3>
+
+  <p>If you prefer not to install permanently, use <code>uvx</code> to run the latest version on-demand:</p>
+
+  <div class="code-block">
+    <pre><code>uvx scratch-sync --help</code></pre>
+    <button class="copy-btn" onclick="copyCode(this, 'uvx scratch-sync --help')">Copy</button>
   </div>
 
   <div class="note">
-    <p><strong>Note:</strong> <code>uvx</code> runs the CLI without installing it globally. This is the recommended approach as it always uses the latest version.</p>
+    <p><strong>Note:</strong> <code>uvx</code> is an alias for <code>uv tool run</code>. It runs commands in a temporary environment without permanent installation.</p>
+  </div>
+
+  <h3>Update &amp; Uninstall</h3>
+
+  <p>Update to the latest version:</p>
+
+  <div class="code-block">
+    <pre><code>uv tool upgrade scratch-sync</code></pre>
+  </div>
+
+  <p>Uninstall:</p>
+
+  <div class="code-block">
+    <pre><code>uv tool uninstall scratch-sync</code></pre>
+  </div>
+
+  <p>List installed tools:</p>
+
+  <div class="code-block">
+    <pre><code>uv tool list</code></pre>
   </div>
 
   <h2>Verifying Installation</h2>
@@ -259,16 +288,21 @@ uv pip install scratch-sync</code></pre>
   <p>After installation, verify everything is working:</p>
 
   <div class="code-block">
-    <pre><code># Check Syncthing is installed
-syncthing --version
+    <pre><code>syncthing --version</code></pre>
+  </div>
 
-# Check it's running (opens web UI)
-open http://127.0.0.1:8384  # macOS
-xdg-open http://127.0.0.1:8384  # Linux
-start http://127.0.0.1:8384  # Windows
+  <p>Open the web UI to verify it's running:</p>
 
-# Get your device ID
-syncthing cli show system | grep myID</code></pre>
+  <ul>
+    <li>macOS: <code>open http://127.0.0.1:8384</code></li>
+    <li>Linux: <code>xdg-open http://127.0.0.1:8384</code></li>
+    <li>Windows: <code>start http://127.0.0.1:8384</code></li>
+  </ul>
+
+  <p>Get your device ID:</p>
+
+  <div class="code-block">
+    <pre><code>syncthing cli show system | grep myID</code></pre>
   </div>
 
   <h2>Dashboard Setup</h2>

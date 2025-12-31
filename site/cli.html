@@ -106,11 +106,11 @@ uvx scratch-sync init ~/code/other-project</code></pre>
 
   <p><strong>What it does:</strong></p>
   <ol>
-    <li>Starts a local discovery server</li>
-    <li>Queries all online Tailscale peers</li>
-    <li>Finds peers running scratch-sync</li>
-    <li>Exchanges Syncthing device IDs</li>
-    <li>Adds discovered devices to Syncthing config</li>
+    <li>Gets all online peers from your Tailscale network</li>
+    <li>Queries each peer's Syncthing REST API (via the noauth endpoint)</li>
+    <li>Discovers Syncthing device IDs automatically</li>
+    <li>Pairs devices bidirectionally</li>
+    <li>Adds discovered devices to all existing scratch folders</li>
   </ol>
 
   <p><strong>Example:</strong></p>
@@ -124,7 +124,7 @@ uvx scratch-sync pair --timeout 10</code></pre>
   </div>
 
   <div class="note">
-    <p><strong>Note:</strong> Both devices must be running the <code>scratch-sync pair</code> command (or <code>scratch-sync serve</code>) at the same time for auto-discovery to work.</p>
+    <p><strong>Note:</strong> Syncthing must be running on remote devices and its GUI must be bound to <code>0.0.0.0:8384</code> (run <code>scratch-sync init</code> on each device first).</p>
   </div>
 
   <h3>scratch-sync status</h3>
@@ -174,35 +174,6 @@ Scratch folders:
   - scratch-notes</code></pre>
   </div>
 
-  <h3>scratch-sync serve</h3>
-
-  <p>Run the discovery server for auto-pairing. This is useful for headless servers or long-running discovery.</p>
-
-  <div class="code-block">
-    <pre><code>scratch-sync serve [--port PORT]</code></pre>
-  </div>
-
-  <table>
-    <tr>
-      <th>Option</th>
-      <th>Description</th>
-    </tr>
-    <tr>
-      <td><code>--port, -p</code></td>
-      <td>Port to run discovery server on (default: 8385)</td>
-    </tr>
-  </table>
-
-  <p><strong>Example:</strong></p>
-
-  <div class="code-block">
-    <pre><code># Run discovery server in foreground
-uvx scratch-sync serve
-
-# Custom port
-uvx scratch-sync serve --port 9000</code></pre>
-  </div>
-
   <h2>Workflow Example</h2>
 
   <p>Here's a typical workflow for setting up scratch-sync across two machines:</p>
@@ -215,10 +186,7 @@ curl -LsSf https://scratch.tlab.sh/install.sh | sh
 
 # 2. Initialize in your project
 cd ~/code/my-project
-uvx scratch-sync init
-
-# 3. Start pairing (keep this running)
-uvx scratch-sync pair</code></pre>
+uvx scratch-sync init</code></pre>
   </div>
 
   <h3>On Machine B (e.g., your workstation)</h3>
@@ -227,15 +195,15 @@ uvx scratch-sync pair</code></pre>
     <pre><code># 1. Install Syncthing
 curl -LsSf https://scratch.tlab.sh/install.sh | sh
 
-# 2. Initialize in your project (same repo)
+# 2. Initialize in your project (same repo, path can differ)
 cd ~/projects/my-project
 uvx scratch-sync init
 
-# 3. Pair with Machine A
+# 3. Pair with all devices on Tailscale
 uvx scratch-sync pair</code></pre>
   </div>
 
-  <p>Once paired, the <code>scratch/</code> folders will sync automatically. Any files you add to <code>scratch/</code> on one machine will appear on the other within seconds.</p>
+  <p>The <code>pair</code> command discovers all Syncthing instances on your Tailscale network and pairs them automatically. Once paired, the <code>scratch/</code> folders will sync automatically whenever both devices have the same folder ID.</p>
 
   <h2>Direct Syncthing Commands</h2>
 

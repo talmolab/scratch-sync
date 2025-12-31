@@ -68,9 +68,9 @@ Syncthing folder IDs just need to match across devices. The actual filesystem pa
               └─────────────────┘
 ```
 
-## Development
+## Documentation
 
-See the [docs](./docs/) folder for detailed documentation.
+Full documentation at [scratch.tlab.sh](https://scratch.tlab.sh).
 
 ## License
 

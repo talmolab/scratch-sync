@@ -5,6 +5,31 @@ description = "Sync private scratch/ folders across machines using Syncthing ove
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
+authors = [
+    { name = "Talmo Pereira", email = "talmo@salk.edu" },
+]
+keywords = [
+    "syncthing",
+    "tailscale",
+    "sync",
+    "file-sync",
+    "scratch",
+    "peer-to-peer",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: System :: Filesystems",
+    "Topic :: Utilities",
+]
 dependencies = [
     "click>=8.0",
     "httpx>=0.25",
@@ -15,8 +40,10 @@ dependencies = [
 scratch-sync = "scratch_sync.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/talmolab/scratch-sync"
+Homepage = "https://scratch.tlab.sh"
+Documentation = "https://scratch.tlab.sh"
 Repository = "https://github.com/talmolab/scratch-sync"
+Issues = "https://github.com/talmolab/scratch-sync/issues"
 
 [build-system]
 requires = ["hatchling"]

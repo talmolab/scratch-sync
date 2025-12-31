@@ -10,15 +10,64 @@
 <body>
   <nav>
     <a href="/">Home</a>
-    <a href="/install.html">Installation</a>
-    <a href="/cli.html">CLI Reference</a>
+    <a href="#install">Install</a>
+    <a href="#cli">CLI</a>
     <a href="https://github.com/talmolab/scratch-sync">GitHub</a>
   </nav>
 
   <h1>scratch-sync</h1>
   <p class="tagline">Sync private scratch/ folders across machines using Syncthing over Tailscale</p>
 
-  <h2>Install</h2>
+  <!-- What It Does -->
+  <h2>What It Does</h2>
+
+  <p>Many developers use a <code>scratch/</code> folder in their repos for notes, experiments, and work-in-progress that shouldn't be in git but should sync across their machines.</p>
+
+  <p>scratch-sync uses <a href="https://syncthing.net/">Syncthing</a> to sync these folders peer-to-peer over your <a href="https://tailscale.com/">Tailscale</a> network &mdash; no cloud storage, no configuration hell.</p>
+
+  <div class="features">
+    <div class="feature">
+      <h3>Cross-Platform</h3>
+      <p>Works on macOS, Linux, and Windows with native installers.</p>
+    </div>
+    <div class="feature">
+      <h3>Private &amp; Secure</h3>
+      <p>Peer-to-peer sync over Tailscale. No cloud relay, no third parties.</p>
+    </div>
+    <div class="feature">
+      <h3>Zero Config</h3>
+      <p>Auto-discovers Tailscale peers. One command to pair devices.</p>
+    </div>
+    <div class="feature">
+      <h3>Git-Friendly</h3>
+      <p>Works with your existing .gitignore. scratch/ stays local.</p>
+    </div>
+  </div>
+
+  <div class="diagram">
+┌─────────────────┐     Tailscale      ┌─────────────────┐
+│  Linux Box      │◄──────────────────►│  Mac Laptop     │
+│ ~/code/sleap-io │                    │ ~/sleap-io      │
+│   └── scratch/  │   folder-id:       │   └── scratch/  │
+│                 │  "scratch-sleap-io"│                 │
+└────────┬────────┘                    └────────┬────────┘
+         │            Tailscale                 │
+         └──────────────┬───────────────────────┘
+                        ▼
+              ┌─────────────────┐
+              │  Windows PC     │
+              │ D:\sleap-io     │
+              │   └── scratch/  │
+              └─────────────────┘</div>
+
+  <p>The key insight: Syncthing folder IDs just need to match across devices. The actual filesystem paths can be completely different.</p>
+
+  <!-- Installation -->
+  <h2 id="install">Install</h2>
+
+  <p>Before installing, make sure you have <a href="https://tailscale.com/download">Tailscale</a> installed and connected on all machines you want to sync.</p>
+
+  <h3>1. Install Syncthing</h3>
 
   <div class="tabs">
     <button class="tab active" onclick="showTab('unix')">macOS / Linux</button>
@@ -40,114 +89,225 @@
   </div>
 
   <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.5rem;">
-    Want to inspect the script first? Run <code>curl -LsSf https://scratch.tlab.sh/install.sh | less</code>
+    This downloads Syncthing and sets it up as a background service. Want to inspect the script first? Run <code>curl -LsSf https://scratch.tlab.sh/install.sh | less</code>
   </p>
 
-  <h2>Quick Start</h2>
+  <h3>2. Install the CLI</h3>
 
-  <ol class="steps">
-    <li>
-      <strong>Install Syncthing</strong> using the command above. This downloads Syncthing and sets it up as a background service.
-    </li>
-    <li>
-      <strong>Install the CLI</strong> (or use <code>uvx</code> to run without installing):
-      <div class="code-block">
-        <pre><code>uv tool install scratch-sync</code></pre>
-        <button class="copy-btn" onclick="copyCode(this, 'uv tool install scratch-sync')">Copy</button>
-      </div>
-    </li>
-    <li>
-      <strong>Initialize in a git repo</strong> with a scratch/ folder:
-      <div class="code-block">
-        <pre><code>cd ~/code/my-project
-scratch-sync init</code></pre>
-        <button class="copy-btn" onclick="copyCode(this, 'scratch-sync init')">Copy</button>
-      </div>
-    </li>
-    <li>
-      <strong>Pair with other devices</strong> on your Tailscale network:
-      <div class="code-block">
-        <pre><code>scratch-sync pair</code></pre>
-        <button class="copy-btn" onclick="copyCode(this, 'scratch-sync pair')">Copy</button>
-      </div>
-    </li>
-  </ol>
-
-  <h2>What It Does</h2>
-
-  <p>Many developers use a <code>scratch/</code> folder in their repos for notes, experiments, and work-in-progress that shouldn't be in git but should sync across their machines.</p>
-
-  <p>scratch-sync uses <a href="https://syncthing.net/">Syncthing</a> to sync these folders peer-to-peer over your <a href="https://tailscale.com/">Tailscale</a> network &mdash; no cloud storage, no configuration hell.</p>
-
-  <div class="diagram">
-┌─────────────────┐     Tailscale      ┌─────────────────┐
-│  Linux Box      │◄──────────────────►│  Mac Laptop     │
-│ ~/code/sleap-io │                    │ ~/sleap-io      │
-│   └── scratch/  │   folder-id:       │   └── scratch/  │
-│                 │  "scratch-sleap-io"│                 │
-└────────┬────────┘                    └────────┬────────┘
-         │            Tailscale                 │
-         └──────────────┬───────────────────────┘
-                        ▼
-              ┌─────────────────┐
-              │  Windows PC     │
-              │ D:\sleap-io     │
-              │   └── scratch/  │
-              └─────────────────┘</div>
-
-  <p>The key insight: Syncthing folder IDs just need to match across devices. The actual filesystem paths can be completely different.</p>
-
-  <h2>Features</h2>
-
-  <div class="features">
-    <div class="feature">
-      <h3>Cross-Platform</h3>
-      <p>Works on macOS, Linux, and Windows with native installers.</p>
-    </div>
-    <div class="feature">
-      <h3>Private & Secure</h3>
-      <p>Peer-to-peer sync over Tailscale. No cloud relay, no third parties.</p>
-    </div>
-    <div class="feature">
-      <h3>Zero Config</h3>
-      <p>Auto-discovers Tailscale peers. One command to pair devices.</p>
-    </div>
-    <div class="feature">
-      <h3>Git-Friendly</h3>
-      <p>Works with your existing .gitignore. scratch/ stays local.</p>
-    </div>
-  </div>
-
-  <h2>Prerequisites</h2>
-
-  <ul>
-    <li><a href="https://tailscale.com/download">Tailscale</a> installed and connected on all machines</li>
-    <li>All machines on the same Tailnet</li>
-    <li><a href="https://github.com/astral-sh/uv">uv</a> (for the CLI)</li>
-  </ul>
-
-  <h3>Install the CLI</h3>
-
-  <p>Permanent install (recommended):</p>
+  <p>The CLI requires <a href="https://github.com/astral-sh/uv">uv</a>. Install globally:</p>
 
   <div class="code-block">
     <pre><code>uv tool install scratch-sync</code></pre>
+    <button class="copy-btn" onclick="copyCode(this, 'uv tool install scratch-sync')">Copy</button>
   </div>
 
   <p>Or run without installing:</p>
 
   <div class="code-block">
     <pre><code>uvx scratch-sync --help</code></pre>
+    <button class="copy-btn" onclick="copyCode(this, 'uvx scratch-sync --help')">Copy</button>
   </div>
 
   <p style="color: var(--text-muted); font-size: 0.9rem;">
     Update: <code>uv tool upgrade scratch-sync</code> &nbsp;|&nbsp; Uninstall: <code>uv tool uninstall scratch-sync</code>
   </p>
 
+  <!-- Quick Start -->
+  <h2>Quick Start</h2>
+
+  <h3>On each machine</h3>
+
+  <div class="code-block">
+    <pre><code>cd ~/code/my-project
+scratch-sync init</code></pre>
+    <button class="copy-btn" onclick="copyCode(this, 'scratch-sync init')">Copy</button>
+  </div>
+
+  <h3>Then pair your devices</h3>
+
+  <div class="code-block">
+    <pre><code>scratch-sync pair</code></pre>
+    <button class="copy-btn" onclick="copyCode(this, 'scratch-sync pair')">Copy</button>
+  </div>
+
+  <p>The <code>pair</code> command discovers all Syncthing instances on your Tailscale network and pairs them automatically. Once paired, <code>scratch/</code> folders sync whenever devices have matching folder IDs.</p>
+
+  <!-- CLI Reference -->
+  <h2 id="cli">CLI Reference</h2>
+
+  <h3>scratch-sync init</h3>
+
+  <p>Initialize scratch-sync in a git repository. Adds the <code>scratch/</code> folder to Syncthing.</p>
+
+  <div class="code-block">
+    <pre><code>scratch-sync init [PATH] [--name NAME]</code></pre>
+  </div>
+
+  <table>
+    <tr>
+      <th>Argument</th>
+      <th>Description</th>
+    </tr>
+    <tr>
+      <td><code>PATH</code></td>
+      <td>Path to the git repository (default: current directory)</td>
+    </tr>
+    <tr>
+      <td><code>--name, -n</code></td>
+      <td>Custom name for the sync folder (default: repo name)</td>
+    </tr>
+  </table>
+
+  <p><strong>What it does:</strong></p>
+  <ol>
+    <li>Finds or creates the <code>scratch/</code> directory</li>
+    <li>Adds it to Syncthing with folder ID <code>scratch-{reponame}</code></li>
+    <li>Adds all known Syncthing devices to the folder</li>
+    <li>Creates a default <code>.stignore</code> file</li>
+    <li>Adds <code>scratch/</code> to <code>.gitignore</code> if not already present</li>
+  </ol>
+
+  <h3>scratch-sync pair</h3>
+
+  <p>Discover and pair with other devices running scratch-sync on your Tailscale network.</p>
+
+  <div class="code-block">
+    <pre><code>scratch-sync pair [--timeout SECONDS]</code></pre>
+  </div>
+
+  <table>
+    <tr>
+      <th>Option</th>
+      <th>Description</th>
+    </tr>
+    <tr>
+      <td><code>--timeout, -t</code></td>
+      <td>Discovery timeout in seconds (default: 3.0)</td>
+    </tr>
+  </table>
+
+  <p><strong>What it does:</strong></p>
+  <ol>
+    <li>Gets all online peers from your Tailscale network</li>
+    <li>Queries each peer's Syncthing REST API</li>
+    <li>Discovers Syncthing device IDs automatically</li>
+    <li>Pairs devices bidirectionally</li>
+    <li>Adds discovered devices to all existing scratch folders</li>
+  </ol>
+
+  <h3>scratch-sync status</h3>
+
+  <p>Show the current sync status of all scratch-sync managed folders.</p>
+
+  <div class="code-block">
+    <pre><code>scratch-sync status</code></pre>
+  </div>
+
+  <h3>scratch-sync list</h3>
+
+  <p>List all scratch-sync managed folders.</p>
+
+  <div class="code-block">
+    <pre><code>scratch-sync list</code></pre>
+  </div>
+
+  <!-- Advanced -->
+  <h2>Advanced</h2>
+
+  <h3>Installer Options</h3>
+
+  <p>macOS / Linux:</p>
+
+  <table>
+    <tr>
+      <th>Option</th>
+      <th>Description</th>
+    </tr>
+    <tr>
+      <td><code>--status</code></td>
+      <td>Show dependency status without installing</td>
+    </tr>
+    <tr>
+      <td><code>--uninstall</code></td>
+      <td>Remove Syncthing and the auto-start service</td>
+    </tr>
+    <tr>
+      <td><code>--upgrade</code></td>
+      <td>Upgrade to the latest Syncthing version</td>
+    </tr>
+    <tr>
+      <td><code>-y, --yes</code></td>
+      <td>Skip confirmation prompts</td>
+    </tr>
+  </table>
+
+  <p>Windows (set before running <code>iwr | iex</code>):</p>
+
+  <table>
+    <tr>
+      <th>Variable</th>
+      <th>Description</th>
+    </tr>
+    <tr>
+      <td><code>$env:STATUS=1</code></td>
+      <td>Show dependency status without installing</td>
+    </tr>
+    <tr>
+      <td><code>$env:UNINSTALL=1</code></td>
+      <td>Remove Syncthing and scheduled task</td>
+    </tr>
+    <tr>
+      <td><code>$env:ALLUSERS=1</code></td>
+      <td>Install as Windows service (requires admin)</td>
+    </tr>
+  </table>
+
+  <h3>Dashboard Setup</h3>
+
+  <div class="note" style="border-left: 4px solid #f59e0b; background: #fefce8; padding: 1rem;">
+    <p><strong>Important:</strong> After installation, set up a password for the Syncthing dashboard at <a href="http://127.0.0.1:8384/">http://127.0.0.1:8384/</a></p>
+  </div>
+
+  <p>Go to <strong>Actions &gt; Settings &gt; GUI</strong> and set a username and password.</p>
+
+  <h3>Direct Syncthing Commands</h3>
+
+  <p>scratch-sync is a wrapper around Syncthing. For advanced use:</p>
+
+  <div class="code-block">
+    <pre><code>syncthing cli config folders list
+syncthing cli config devices list
+syncthing cli show folder-status scratch-my-project
+syncthing cli operations scan --folder scratch-my-project
+syncthing cli config folders remove --id scratch-my-project</code></pre>
+  </div>
+
+  <h3>Troubleshooting</h3>
+
+  <p><strong>Syncthing not in PATH:</strong></p>
+
+  <div class="code-block">
+    <pre><code>export PATH="$HOME/.local/bin:$PATH"</code></pre>
+  </div>
+
+  <p><strong>Service not starting (Linux):</strong></p>
+
+  <div class="code-block">
+    <pre><code>systemctl --user status syncthing
+journalctl --user -u syncthing -f
+systemctl --user start syncthing</code></pre>
+  </div>
+
+  <p><strong>Service not starting (macOS):</strong></p>
+
+  <div class="code-block">
+    <pre><code>launchctl list | grep syncthing
+tail -f ~/Library/Logs/syncthing.log
+launchctl load ~/Library/LaunchAgents/com.syncthing.syncthing.plist</code></pre>
+  </div>
+
   <footer>
     <a href="https://github.com/talmolab/scratch-sync">GitHub</a>
-    <a href="/install.html">Installation Guide</a>
-    <a href="/cli.html">CLI Reference</a>
     <a href="https://pypi.org/project/scratch-sync/">PyPI</a>
   </footer>
 
@@ -177,7 +337,6 @@ scratch-sync init</code></pre>
       if (platform.includes('win') || userAgent.includes('windows')) {
         showTab('windows');
       }
-      // macOS and Linux default to 'unix' tab (already active)
     })();
   </script>
 </body>

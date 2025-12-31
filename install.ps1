@@ -352,6 +352,47 @@ function Install-Syncthing {
             }
         }
 
+        # Configure GUI binding for remote discovery (required for scratch-sync pair)
+        Write-Host ""
+        Write-Info "Configuring Syncthing for remote discovery..."
+
+        # Wait for Syncthing to start and create config
+        $configWait = 0
+        $maxConfigWait = 30
+        $configFile = "$ConfigDir\config.xml"
+        while (-not (Test-Path $configFile) -and $configWait -lt $maxConfigWait) {
+            Start-Sleep -Seconds 1
+            $configWait++
+        }
+
+        if (Test-Path $configFile) {
+            # Check current GUI address
+            $currentAddress = & "$InstallDir\syncthing.exe" cli config gui raw-address get 2>$null
+            if ($currentAddress -match "^127\.0\.0\.1" -or $currentAddress -match "^localhost") {
+                # Change to 0.0.0.0 for remote discovery
+                & "$InstallDir\syncthing.exe" cli config gui raw-address set "0.0.0.0:8384" 2>$null
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Success "GUI binding set to 0.0.0.0:8384 for remote discovery"
+
+                    # Restart Syncthing to apply the change
+                    $stProcess = Get-Process syncthing -ErrorAction SilentlyContinue
+                    if ($stProcess) {
+                        Write-Info "Restarting Syncthing to apply changes..."
+                        & "$InstallDir\syncthing.exe" cli operations restart 2>$null
+                        Start-Sleep -Seconds 2
+                    }
+                } else {
+                    Write-Warning "Could not configure GUI binding automatically"
+                    Write-Host "  Run manually: & `"$InstallDir\syncthing.exe`" cli config gui raw-address set 0.0.0.0:8384"
+                }
+            } else {
+                Write-Host "  GUI already configured for remote access: $currentAddress" -ForegroundColor DarkGray
+            }
+        } else {
+            Write-Warning "Syncthing config not found yet - GUI binding not configured"
+            Write-Host "  Run after first start: & `"$InstallDir\syncthing.exe`" cli config gui raw-address set 0.0.0.0:8384"
+        }
+
         Write-Host ""
         Print-Instructions
     }

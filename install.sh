@@ -2,11 +2,20 @@
 # scratch-sync installer
 # Usage: curl -LsSf https://raw.githubusercontent.com/talmo/scratch-sync/main/install.sh | sh
 #
-# Options (via environment variables):
+# Commands (pass as argument or environment variable):
+#   --uninstall, UNINSTALL=1   - Uninstall syncthing
+#   --upgrade, UPGRADE=1       - Upgrade to latest version
+#   -y, --yes, YES=1           - Skip confirmation prompts
+#
+# Options (environment variables):
 #   INSTALL_DIR    - Where to install binaries (default: ~/.local/bin)
 #   NO_SERVICE     - Set to 1 to skip service setup
-#   UNINSTALL      - Set to 1 to uninstall
-#   UPGRADE        - Set to 1 to check for and install latest version
+#
+# Examples:
+#   curl -LsSf .../install.sh | sh                    # Install
+#   curl -LsSf .../install.sh | sh -s -- --uninstall  # Uninstall
+#   curl -LsSf .../install.sh | sh -s -- --upgrade    # Upgrade
+#   curl -LsSf .../install.sh | sh -s -- -y           # Install without prompts
 
 set -e
 
@@ -45,6 +54,45 @@ warn() {
 error() {
     printf "${RED}error${NC}: %s\n" "$1" >&2
     exit 1
+}
+
+# Read user input, handling piped stdin by reading from /dev/tty
+prompt() {
+    if [ "${YES:-0}" = "1" ]; then
+        # Auto-yes mode
+        echo "y"
+        return
+    fi
+
+    if [ -t 0 ]; then
+        # stdin is a terminal, read normally
+        read -r REPLY
+    else
+        # stdin is piped (curl | sh), read from tty
+        read -r REPLY </dev/tty
+    fi
+    echo "$REPLY"
+}
+
+# Parse command line arguments
+parse_args() {
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --uninstall)
+                UNINSTALL=1
+                ;;
+            --upgrade)
+                UPGRADE=1
+                ;;
+            -y|--yes)
+                YES=1
+                ;;
+            *)
+                warn "Unknown option: $1"
+                ;;
+        esac
+        shift
+    done
 }
 
 # Detect OS and architecture
@@ -111,7 +159,7 @@ check_existing() {
         fi
 
         printf "Continue with installation? [y/N] "
-        read -r REPLY
+        REPLY=$(prompt)
         case "$REPLY" in
             [yY]|[yY][eE][sS])
                 ;;
@@ -245,7 +293,7 @@ setup_service_macos() {
     if [ -f "$PLIST_FILE" ]; then
         warn "LaunchAgent already exists at $PLIST_FILE"
         printf "Overwrite? [y/N] "
-        read -r REPLY
+        REPLY=$(prompt)
         case "$REPLY" in
             [yY]|[yY][eE][sS])
                 launchctl unload "$PLIST_FILE" 2>/dev/null || true
@@ -433,7 +481,7 @@ uninstall() {
     if [ -d "$CONFIG_DIR" ]; then
         warn "Config directory exists: $CONFIG_DIR"
         printf "Remove config and data? This cannot be undone! [y/N] "
-        read -r REPLY
+        REPLY=$(prompt)
         case "$REPLY" in
             [yY]|[yY][eE][sS])
                 rm -rf "$CONFIG_DIR"
@@ -472,6 +520,9 @@ print_instructions() {
 
 # Main
 main() {
+    # Parse command line arguments
+    parse_args "$@"
+
     echo ""
     echo "scratch-sync installer"
     echo ""

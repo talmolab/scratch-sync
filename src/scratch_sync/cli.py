@@ -516,7 +516,7 @@ def status():
         # Normalize to localhost for display
         if gui_address.startswith("0.0.0.0:"):
             gui_address = "127.0.0.1:" + gui_address.split(":")[1]
-        dashboard_url = f"https://{gui_address}/"
+        dashboard_url = f"http://{gui_address}/"
 
         console.print(Panel(
             f"[cyan]Device ID:[/]  {device_id}\n"

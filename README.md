@@ -35,6 +35,23 @@ Each repo has a `scratch/` subfolder that's `.gitignore`d — notes, experiments
 curl -LsSf https://scratch.tlab.sh/install.sh | sh
 ```
 
+The installer will download Syncthing, set up auto-start, and show you the status of all dependencies:
+
+```
+Dependencies
+
+  uv           installed 0.9.18     ~/.local/bin/uv
+  tailscale    running   1.92.3     your-tailnet.org / you@example.com
+  syncthing    running v2.0.12    ~/.local/bin/syncthing / autostart: launchd
+```
+
+After installation, remember to **set up a password** for the Syncthing dashboard at `http://127.0.0.1:8384/`.
+
+To check dependency status anytime:
+```bash
+curl -LsSf https://scratch.tlab.sh/install.sh | sh -s -- --status
+```
+
 ### Usage
 
 ```bash

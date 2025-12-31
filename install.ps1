@@ -7,10 +7,12 @@
 # Options:
 #   -Uninstall    Uninstall syncthing
 #   -AllUsers     Install as Windows service (requires admin)
+#   -Status       Show dependency status only
 
 param(
     [switch]$Uninstall,
-    [switch]$AllUsers
+    [switch]$AllUsers,
+    [switch]$Status
 )
 
 $ErrorActionPreference = "Stop"
@@ -20,6 +22,142 @@ function Write-Info { Write-Host "info: " -ForegroundColor Blue -NoNewline; Writ
 function Write-Success { Write-Host "done: " -ForegroundColor Green -NoNewline; Write-Host $args }
 function Write-Warning { Write-Host "warn: " -ForegroundColor Yellow -NoNewline; Write-Host $args }
 function Write-Err { Write-Host "error: " -ForegroundColor Red -NoNewline; Write-Host $args; exit 1 }
+
+# ============================================================================
+# Dependency Status Checks
+# ============================================================================
+
+function Check-Uv {
+    $uvPath = Get-Command uv -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
+    if ($uvPath) {
+        $uvVersion = & uv --version 2>$null | ForEach-Object { ($_ -split ' ')[1] }
+        Write-Host "  uv           " -NoNewline
+        Write-Host "installed " -ForegroundColor Green -NoNewline
+        Write-Host "$uvVersion".PadRight(10) -NoNewline
+        Write-Host " $uvPath" -ForegroundColor DarkGray
+        return $true
+    } else {
+        Write-Host "  uv           " -NoNewline
+        Write-Host "not found " -ForegroundColor Yellow -NoNewline
+        Write-Host " (optional, for 'uvx scratch-sync' CLI)" -ForegroundColor DarkGray
+        return $false
+    }
+}
+
+function Check-Tailscale {
+    # Check common Tailscale paths on Windows
+    $tsPath = Get-Command tailscale -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
+    if (-not $tsPath) {
+        $possiblePaths = @(
+            "$env:ProgramFiles\Tailscale\tailscale.exe",
+            "$env:LOCALAPPDATA\Tailscale\tailscale.exe"
+        )
+        foreach ($path in $possiblePaths) {
+            if (Test-Path $path) {
+                $tsPath = $path
+                break
+            }
+        }
+    }
+
+    if ($tsPath) {
+        $tsVersion = & $tsPath version 2>$null | Select-Object -First 1
+
+        # Check if running and get tailnet info
+        $status = & $tsPath status 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            # Try to get tailnet info from JSON status
+            $statusJson = & $tsPath status --json 2>$null | ConvertFrom-Json -ErrorAction SilentlyContinue
+            $tailnetName = $statusJson.CurrentTailnet.Name
+            $userLogin = ""
+            if ($statusJson.Self.UserID) {
+                $userId = $statusJson.Self.UserID.ToString()
+                $userLogin = $statusJson.User.$userId.LoginName
+            }
+
+            $details = @()
+            if ($tailnetName) { $details += $tailnetName }
+            if ($userLogin) { $details += $userLogin }
+            $detailsStr = $details -join " / "
+
+            Write-Host "  tailscale    " -NoNewline
+            Write-Host "running   " -ForegroundColor Green -NoNewline
+            Write-Host "$tsVersion".PadRight(10) -NoNewline
+            Write-Host " $detailsStr" -ForegroundColor DarkGray
+        } else {
+            Write-Host "  tailscale    " -NoNewline
+            Write-Host "not running " -ForegroundColor Yellow -NoNewline
+            Write-Host "$tsVersion".PadRight(10) -NoNewline
+            Write-Host " $tsPath" -ForegroundColor DarkGray
+        }
+        return $true
+    } else {
+        Write-Host "  tailscale    " -NoNewline
+        Write-Host "not found" -ForegroundColor Red
+        Write-Host ""
+        Write-Warning "Tailscale is required for device discovery over private network"
+        Write-Host "  Install from: https://tailscale.com/download"
+        return $false
+    }
+}
+
+function Check-Syncthing {
+    # Find syncthing binary
+    $stPath = $null
+    if (Test-Path "$InstallDir\syncthing.exe") {
+        $stPath = "$InstallDir\syncthing.exe"
+    } elseif (Get-Command syncthing -ErrorAction SilentlyContinue) {
+        $stPath = Get-Command syncthing | Select-Object -ExpandProperty Source
+    }
+
+    if (-not $stPath) {
+        Write-Host "  syncthing    " -NoNewline
+        Write-Host "not found" -ForegroundColor Red
+        return $false
+    }
+
+    # Get version
+    $stVersion = ""
+    $versionOutput = & $stPath --version 2>$null | Select-Object -First 1
+    if ($versionOutput -match 'v?([\d\.]+)') {
+        $stVersion = "v$($matches[1])"
+    }
+
+    # Check if running
+    $stProcess = Get-Process syncthing -ErrorAction SilentlyContinue
+    if ($stProcess) {
+        Write-Host "  syncthing    " -NoNewline
+        Write-Host "running   " -ForegroundColor Green -NoNewline
+    } else {
+        Write-Host "  syncthing    " -NoNewline
+        Write-Host "not running " -ForegroundColor Yellow -NoNewline
+    }
+
+    # Check autostart (Windows Task Scheduler or Startup folder)
+    $autostart = ""
+    $task = schtasks /Query /TN "Syncthing" 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        $autostart = " / autostart: task_scheduler"
+    } else {
+        $startupPath = [Environment]::GetFolderPath('Startup')
+        if (Test-Path "$startupPath\Syncthing.lnk") {
+            $autostart = " / autostart: startup_folder"
+        }
+    }
+
+    Write-Host "$stVersion".PadRight(10) -NoNewline
+    Write-Host " $stPath$autostart" -ForegroundColor DarkGray
+    return $true
+}
+
+function Show-Status {
+    Write-Host ""
+    Write-Host "Dependencies"
+    Write-Host ""
+    Check-Uv | Out-Null
+    Check-Tailscale | Out-Null
+    Check-Syncthing | Out-Null
+}
 
 # Installation paths (match SyncthingWindowsSetup defaults)
 $InstallDir = if ($AllUsers) { "$env:ProgramFiles\Syncthing" } else { "$env:LOCALAPPDATA\Programs\Syncthing" }
@@ -160,16 +298,46 @@ function Uninstall-Syncthing {
 }
 
 function Print-Instructions {
+    Write-Host ""
+    Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Success "scratch-sync installation complete!"
+    Write-Host ""
+
+    # Show dependency status
+    Show-Status
+
+    Write-Host ""
     Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "  Syncthing binary: $InstallDir\syncthing.exe"
     Write-Host "  Config directory: $ConfigDir"
-    Write-Host "  Web UI: http://127.0.0.1:8384"
+    Write-Host ""
+
+    # Dashboard setup reminder
+    Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "Important: " -ForegroundColor Yellow -NoNewline
+    Write-Host "Set up a password for the Syncthing dashboard"
+    Write-Host ""
+    Write-Host "  The dashboard is accessible at:"
+    Write-Host "    http://127.0.0.1:8384/" -ForegroundColor Blue
+    Write-Host ""
+    Write-Host "  On first visit:"
+    Write-Host "    1. Go to Actions > Settings > GUI"
+    Write-Host "    2. Set a username and password"
+    Write-Host ""
+    Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "  Use Start Menu shortcuts to Start/Stop Syncthing"
     Write-Host ""
     Write-Host "  Get your device ID:"
     Write-Host "    syncthing --device-id"
+    Write-Host ""
+    Write-Host "  Use the CLI (requires uv or pip):"
+    Write-Host "    uvx scratch-sync init     # Initialize in a git repo"
+    Write-Host "    uvx scratch-sync pair     # Discover and pair devices"
+    Write-Host "    uvx scratch-sync status   # Show sync status"
     Write-Host ""
     Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
 }
@@ -180,7 +348,9 @@ Write-Host "scratch-sync installer" -ForegroundColor Cyan
 Write-Host "(powered by SyncthingWindowsSetup)" -ForegroundColor DarkGray
 Write-Host ""
 
-if ($Uninstall) {
+if ($Status) {
+    Show-Status
+} elseif ($Uninstall) {
     Uninstall-Syncthing
 } else {
     Install-Syncthing

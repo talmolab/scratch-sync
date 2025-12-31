@@ -65,7 +65,28 @@
       </ul>
     </li>
     <li><strong>Starts Syncthing</strong> in the background</li>
+    <li><strong>Shows dependency status</strong> for uv, Tailscale, and Syncthing</li>
+    <li><strong>Reminds you to set up dashboard credentials</strong></li>
   </ol>
+
+  <h3>Dependency Status</h3>
+
+  <p>After installation, you'll see a summary of all dependencies:</p>
+
+  <div class="code-block">
+    <pre><code>Dependencies
+
+  uv           installed 0.9.18     ~/.local/bin/uv
+  tailscale    running   1.92.3     your-tailnet.org / you@example.com
+  syncthing    running v2.0.12    ~/.local/bin/syncthing / autostart: launchd</code></pre>
+  </div>
+
+  <p>Check status anytime with:</p>
+
+  <div class="code-block">
+    <pre><code>curl -LsSf https://scratch.tlab.sh/install.sh | sh -s -- --status</code></pre>
+    <button class="copy-btn" onclick="copyCode(this, 'curl -LsSf https://scratch.tlab.sh/install.sh | sh -s -- --status')">Copy</button>
+  </div>
 
   <h3>Windows</h3>
 
@@ -88,6 +109,10 @@
     <tr>
       <th>Option</th>
       <th>Description</th>
+    </tr>
+    <tr>
+      <td><code>--status</code></td>
+      <td>Show dependency status (uv, Tailscale, Syncthing) without installing</td>
     </tr>
     <tr>
       <td><code>--uninstall</code></td>
@@ -131,7 +156,10 @@
   <p>Examples:</p>
 
   <div class="code-block">
-    <pre><code># Uninstall
+    <pre><code># Check dependency status
+curl -LsSf https://scratch.tlab.sh/install.sh | sh -s -- --status
+
+# Uninstall
 curl -LsSf https://scratch.tlab.sh/install.sh | sh -s -- --uninstall
 
 # Upgrade to latest
@@ -152,20 +180,16 @@ INSTALL_DIR=/opt/bin curl -LsSf https://scratch.tlab.sh/install.sh | sh</code></
       <th>Description</th>
     </tr>
     <tr>
+      <td><code>-Status</code></td>
+      <td>Show dependency status (uv, Tailscale, Syncthing) without installing</td>
+    </tr>
+    <tr>
       <td><code>-Uninstall</code></td>
       <td>Remove Syncthing and scheduled task</td>
     </tr>
     <tr>
-      <td><code>-NoService</code></td>
-      <td>Skip scheduled task setup</td>
-    </tr>
-    <tr>
-      <td><code>-SyncthingVersion</code></td>
-      <td>Install a specific version</td>
-    </tr>
-    <tr>
-      <td><code>-InstallDir</code></td>
-      <td>Custom installation directory</td>
+      <td><code>-AllUsers</code></td>
+      <td>Install as Windows service (requires admin)</td>
     </tr>
   </table>
 
@@ -174,8 +198,15 @@ INSTALL_DIR=/opt/bin curl -LsSf https://scratch.tlab.sh/install.sh | sh</code></
   <div class="code-block">
     <pre><code># Download and run with options
 Invoke-WebRequest -Uri https://scratch.tlab.sh/install.ps1 -OutFile install.ps1
+
+# Check dependency status
+.\install.ps1 -Status
+
+# Uninstall
 .\install.ps1 -Uninstall
-.\install.ps1 -NoService</code></pre>
+
+# Install for all users (as Windows service)
+.\install.ps1 -AllUsers</code></pre>
   </div>
 
   <h2>Installing the CLI</h2>
@@ -213,6 +244,23 @@ start http://127.0.0.1:8384  # Windows
 # Get your device ID
 syncthing cli show system | grep myID</code></pre>
   </div>
+
+  <h2>Dashboard Setup</h2>
+
+  <div class="note" style="border-left: 4px solid #f59e0b; background: #fefce8; padding: 1rem;">
+    <p><strong>Important:</strong> After installation, set up a password for the Syncthing dashboard to secure your instance.</p>
+  </div>
+
+  <p>The Syncthing dashboard is accessible at <a href="http://127.0.0.1:8384/">http://127.0.0.1:8384/</a></p>
+
+  <p>On first visit:</p>
+  <ol>
+    <li>Go to <strong>Actions &gt; Settings &gt; GUI</strong></li>
+    <li>Set a <strong>username and password</strong></li>
+    <li>Click <strong>Save</strong></li>
+  </ol>
+
+  <p>This protects your Syncthing instance if the dashboard is exposed on a network interface.</p>
 
   <h2>Troubleshooting</h2>
 

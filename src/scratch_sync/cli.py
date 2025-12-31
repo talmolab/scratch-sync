@@ -255,6 +255,54 @@ def init(path: Path | None, name: str | None):
     console.print("  2. On other devices, run [cyan]scratch-sync init[/] in the same repo")
 
 
+def _print_discovery_troubleshooting(failed_peers: list) -> None:
+    """Print troubleshooting tips based on discovery failures."""
+    # Categorize failures
+    refused = []
+    timeouts = []
+    other = []
+
+    for peer, result in failed_peers:
+        if result.status == discovery.DiscoveryStatus.CONNECTION_REFUSED:
+            refused.append(peer)
+        elif result.status == discovery.DiscoveryStatus.TIMEOUT:
+            timeouts.append(peer)
+        else:
+            other.append(peer)
+
+    console.print("[bold]Troubleshooting:[/]")
+
+    if refused:
+        console.print()
+        console.print(f"  [yellow]Not listening[/] on {len(refused)} peer(s):")
+        for peer in refused:
+            console.print(f"    • {peer.hostname}")
+        console.print()
+        console.print("  [dim]This means port 8384 is not open. Possible causes:[/]")
+        console.print("    • Syncthing not installed")
+        console.print("    • Syncthing not running")
+        console.print("    • Syncthing GUI bound to localhost only")
+        console.print()
+        console.print("  [dim]On those machines, install/start Syncthing and run:[/]")
+        console.print("    [cyan]scratch-sync init[/]")
+
+    if timeouts:
+        console.print()
+        console.print(f"  [dim]Timeout[/] on {len(timeouts)} peer(s):")
+        for peer in timeouts:
+            console.print(f"    • {peer.hostname}")
+        console.print()
+        console.print("  [dim]This could mean:[/]")
+        console.print("    • Syncthing is not running")
+        console.print("    • Firewall blocking port 8384")
+        console.print("    • Network connectivity issues")
+
+    if other and not refused and not timeouts:
+        console.print()
+        console.print("  • Ensure Syncthing is running on other devices")
+        console.print("  • Run [cyan]scratch-sync init[/] on other devices to configure GUI binding")
+
+
 @main.command()
 @click.option("--timeout", "-t", default=3.0, show_default=True, help="Discovery timeout in seconds")
 @click.option("--yes", "-y", is_flag=True, help="Auto-accept all discovered devices without prompting")
@@ -291,24 +339,30 @@ def pair(timeout: float, yes: bool):
 
     # Try to discover Syncthing on each peer using the noauth endpoint
     discovered = []
+    failed_peers = []  # Track failures for troubleshooting
     for peer in peers:
         console.print(f"  Checking [cyan]{peer.hostname}[/] ({peer.tailscale_ip})...", end="")
-        info = discovery.discover_syncthing_peer(peer.tailscale_ip, timeout=timeout)
-        if info:
+        result = discovery.discover_syncthing_peer_detailed(peer.tailscale_ip, timeout=timeout)
+
+        if result.status == discovery.DiscoveryStatus.SUCCESS:
             console.print(" [green]found![/]")
-            info["tailscale_hostname"] = peer.hostname
-            discovered.append(info)
+            result.peer_info["tailscale_hostname"] = peer.hostname
+            discovered.append(result.peer_info)
+        elif result.status == discovery.DiscoveryStatus.CONNECTION_REFUSED:
+            console.print(" [yellow]not listening[/]")
+            failed_peers.append((peer, result))
+        elif result.status == discovery.DiscoveryStatus.TIMEOUT:
+            console.print(" [dim]timeout[/]")
+            failed_peers.append((peer, result))
         else:
             console.print(" [dim]no Syncthing[/]")
+            failed_peers.append((peer, result))
 
     if not discovered:
         console.print()
         console.print("[dim]No Syncthing peers discovered.[/]")
         console.print()
-        console.print("[bold]Troubleshooting:[/]")
-        console.print("  • Ensure Syncthing is running on other devices")
-        console.print("  • Run [cyan]scratch-sync init[/] on other devices to configure GUI binding")
-        console.print("  • Or manually: [dim]syncthing cli config gui raw-address set 0.0.0.0:8384[/]")
+        _print_discovery_troubleshooting(failed_peers)
         return
 
     console.print()

@@ -53,20 +53,45 @@ Dependencies
 
 After installation, remember to **set up a password** for the Syncthing dashboard at `http://127.0.0.1:8384/`.
 
-**Uninstall:**
+**Uninstall (macOS / Linux):**
 ```bash
-# macOS / Linux
 curl -LsSf https://scratch.tlab.sh/install.sh | sh -s -- --uninstall
 ```
 
+**Uninstall (Windows):**
 ```powershell
-# Windows
 $env:UNINSTALL=1; iwr -useb https://scratch.tlab.sh/install.ps1 | iex
 ```
 
 **Check dependency status:**
 ```bash
 curl -LsSf https://scratch.tlab.sh/install.sh | sh -s -- --status
+```
+
+### Install the CLI
+
+The `scratch-sync` CLI helps you manage synced folders. Choose your preferred installation method:
+
+**Permanent install (recommended):**
+```bash
+uv tool install scratch-sync
+```
+This installs `scratch-sync` globally so you can run it from anywhere.
+
+**Run without installing:**
+```bash
+uvx scratch-sync --help
+```
+If you prefer not to install permanently, use `uvx` to run the latest version on-demand.
+
+**Update to latest version:**
+```bash
+uv tool upgrade scratch-sync
+```
+
+**Uninstall:**
+```bash
+uv tool uninstall scratch-sync
 ```
 
 ### Usage
@@ -105,6 +130,59 @@ Syncthing folder IDs just need to match across devices. The actual filesystem pa
 ## Documentation
 
 Full documentation at [scratch.tlab.sh](https://scratch.tlab.sh).
+
+## Development
+
+### Setup
+
+Clone the repository and install dependencies:
+
+```bash
+git clone https://github.com/talmolab/scratch-sync.git
+cd scratch-sync
+uv sync
+```
+
+This creates a virtual environment and installs all dependencies.
+
+### Running in development
+
+Run the CLI directly from source:
+
+```bash
+uv run scratch-sync --help
+```
+
+### Install from GitHub
+
+Install the latest development version from the `main` branch:
+
+```bash
+uv tool install git+https://github.com/talmolab/scratch-sync.git
+```
+
+Or run without installing:
+
+```bash
+uvx --from git+https://github.com/talmolab/scratch-sync.git scratch-sync --help
+```
+
+### Local editable install
+
+For development, install as an editable tool from your local checkout:
+
+```bash
+uv tool install --editable .
+```
+
+This installs `scratch-sync` globally but uses your local source files, so changes take effect immediately.
+
+To uninstall and reinstall after making changes to entry points:
+
+```bash
+uv tool uninstall scratch-sync
+uv tool install --editable .
+```
 
 ## License
 

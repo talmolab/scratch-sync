@@ -252,6 +252,7 @@ def init(path: Path | None, name: str | None):
     console.print()
     console.print("[bold]Next steps:[/]")
     console.print("  1. Run [cyan]scratch-sync pair[/] to discover and pair with other devices")
+    console.print("     [dim](only needed once per new machine, not for every repo)[/]")
     console.print("  2. On other devices, run [cyan]scratch-sync init[/] in the same repo")
 
 

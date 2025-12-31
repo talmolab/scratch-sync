@@ -5,9 +5,41 @@ import subprocess
 import sys
 from pathlib import Path
 
-import click
+import rich_click as click
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
 
 from scratch_sync import syncthing, tailscale, discovery
+
+# Rich console for styled output
+console = Console()
+
+# Configure rich-click styling
+click.rich_click.THEME = "nord-modern"
+click.rich_click.TEXT_MARKUP = "rich"
+click.rich_click.SHOW_ARGUMENTS = True
+click.rich_click.HEADER_TEXT = "[bold cyan]scratch-sync[/] - Sync scratch/ folders across machines"
+click.rich_click.STYLE_ERRORS_SUGGESTION = "magenta italic"
+click.rich_click.ERRORS_SUGGESTION = "Try running [bold]'scratch-sync --help'[/] for more information."
+
+# Group commands for better organization
+click.rich_click.COMMAND_GROUPS = {
+    "scratch-sync": [
+        {
+            "name": "Setup",
+            "commands": ["init", "pair"],
+        },
+        {
+            "name": "Monitoring",
+            "commands": ["status", "list"],
+        },
+        {
+            "name": "Advanced",
+            "commands": ["serve"],
+        },
+    ]
+}
 
 STIGNORE_TEMPLATE = """\
 // Syncthing ignore patterns for scratch folders
@@ -104,25 +136,40 @@ def sanitize_folder_id(name: str) -> str:
 
 
 @click.group()
-@click.version_option()
+@click.version_option(prog_name="scratch-sync")
 def main():
-    """Sync private scratch/ folders across machines using Syncthing."""
+    """Sync private [bold cyan]scratch/[/] folders across machines using [bold]Syncthing[/] over [bold]Tailscale[/].
+
+    [dim]scratch-sync helps you keep your local scratch directories synchronized
+    across all your development machines on a private Tailscale network.[/]
+
+    [bold]Quick start:[/]
+      1. Run [cyan]scratch-sync init[/] in a git repository
+      2. Run [cyan]scratch-sync pair[/] to discover other devices
+      3. Repeat on your other machines
+    """
     pass
 
 
 @main.command()
-@click.argument("path", type=click.Path(exists=True, path_type=Path), required=False)
-@click.option("--name", "-n", help="Custom name for the sync folder")
+@click.argument("path", type=click.Path(exists=True, path_type=Path), required=False, metavar="[PATH]")
+@click.option("--name", "-n", help="Custom name for the sync folder [dim](defaults to repo name)[/]")
 def init(path: Path | None, name: str | None):
     """Initialize scratch-sync in a git repository.
 
-    If PATH is not specified, uses the current directory.
-    Looks for a scratch/ subdirectory and adds it to Syncthing.
+    Sets up a [bold cyan]scratch/[/] folder for syncing in the specified directory
+    (or current directory if not specified).
+
+    [bold]What this does:[/]
+      • Creates [cyan]scratch/[/] directory if it doesn't exist
+      • Adds the folder to Syncthing with ID [dim]scratch-<repo-name>[/]
+      • Creates a default [dim].stignore[/] file
+      • Adds [cyan]scratch/[/] to [dim].gitignore[/]
     """
     # Check syncthing is available
     if not syncthing.find_syncthing():
-        click.echo("Error: Syncthing not installed. Run the installer first:", err=True)
-        click.echo("  curl -LsSf https://scratch.tlab.sh/install.sh | sh", err=True)
+        console.print("[red]Error:[/] Syncthing not installed. Run the installer first:")
+        console.print("  [cyan]curl -LsSf https://scratch.tlab.sh/install.sh | sh[/]")
         sys.exit(1)
 
     # Determine path
@@ -132,7 +179,7 @@ def init(path: Path | None, name: str | None):
     # Find scratch directory
     scratch_path = path / "scratch"
     if not scratch_path.exists():
-        click.echo(f"Creating scratch directory: {scratch_path}")
+        console.print(f"[cyan]Creating[/] scratch directory: [bold]{scratch_path}[/]")
         scratch_path.mkdir(parents=True)
 
     # Determine folder name
@@ -147,17 +194,17 @@ def init(path: Path | None, name: str | None):
 
     # Check if already exists
     if syncthing.folder_exists(folder_id):
-        click.echo(f"Folder '{folder_id}' already exists in Syncthing config.")
-        click.echo(f"To remove: syncthing cli config folders remove --id {folder_id}")
+        console.print(f"[yellow]Warning:[/] Folder [cyan]{folder_id}[/] already exists in Syncthing config.")
+        console.print(f"[dim]To remove: syncthing cli config folders remove --id {folder_id}[/]")
         sys.exit(1)
 
     # Add folder
-    click.echo(f"Adding folder to Syncthing:")
-    click.echo(f"  ID:   {folder_id}")
-    click.echo(f"  Path: {scratch_path.resolve()}")
+    console.print("[bold]Adding folder to Syncthing:[/]")
+    console.print(f"  [dim]ID:[/]   [cyan]{folder_id}[/]")
+    console.print(f"  [dim]Path:[/] [cyan]{scratch_path.resolve()}[/]")
 
     if not syncthing.add_folder(folder_id, scratch_path.resolve()):
-        click.echo("Failed to add folder", err=True)
+        console.print("[red]Failed to add folder[/]")
         sys.exit(1)
 
     # Add all known devices to this folder
@@ -165,12 +212,12 @@ def init(path: Path | None, name: str | None):
     for device_id in syncthing.list_devices():
         if device_id != local_device_id:
             syncthing.add_device_to_folder(folder_id, device_id)
-            click.echo(f"  Added device: {device_id[:7]}...")
+            console.print(f"  [green]Added device:[/] [dim]{device_id[:7]}...[/]")
 
     # Create .stignore if it doesn't exist
     stignore_path = scratch_path / ".stignore"
     if not stignore_path.exists():
-        click.echo("Creating default .stignore...")
+        console.print("[cyan]Creating[/] default .stignore...")
         stignore_path.write_text(STIGNORE_TEMPLATE)
 
     # Ensure scratch is in .gitignore
@@ -178,78 +225,86 @@ def init(path: Path | None, name: str | None):
     if gitignore_path.exists():
         content = gitignore_path.read_text()
         if "scratch/" not in content and "/scratch" not in content:
-            click.echo("Adding scratch/ to .gitignore...")
+            console.print("[cyan]Adding[/] scratch/ to .gitignore...")
             with open(gitignore_path, "a") as f:
                 f.write("\n# Local scratch folder (synced via scratch-sync)\nscratch/\n")
     else:
-        click.echo("Creating .gitignore with scratch/...")
+        console.print("[cyan]Creating[/] .gitignore with scratch/...")
         gitignore_path.write_text("# Local scratch folder (synced via scratch-sync)\nscratch/\n")
 
-    click.echo()
-    click.echo(click.style("Done!", fg="green"))
-    click.echo()
-    click.echo("Next steps:")
-    click.echo("  1. Run 'scratch-sync pair' to discover and pair with other devices")
-    click.echo("  2. On other devices, run 'scratch-sync init' in the same repo")
+    console.print()
+    console.print("[bold green]Done![/]")
+    console.print()
+    console.print("[bold]Next steps:[/]")
+    console.print("  1. Run [cyan]scratch-sync pair[/] to discover and pair with other devices")
+    console.print("  2. On other devices, run [cyan]scratch-sync init[/] in the same repo")
 
 
 @main.command()
-@click.option("--timeout", "-t", default=3.0, help="Discovery timeout in seconds")
+@click.option("--timeout", "-t", default=3.0, show_default=True, help="Discovery timeout in seconds")
 def pair(timeout: float):
-    """Discover and pair with other devices on the Tailscale network."""
+    """Discover and pair with other devices on the Tailscale network.
+
+    Scans your [bold]Tailscale[/] network for other machines running scratch-sync
+    and automatically pairs them for folder synchronization.
+
+    [bold]Requirements:[/]
+      • Tailscale must be running and connected
+      • Other devices should have scratch-sync installed
+    """
     if not tailscale.is_tailscale_running():
-        click.echo("Error: Tailscale is not running", err=True)
+        console.print("[red]Error:[/] Tailscale is not running")
         sys.exit(1)
 
     if not syncthing.find_syncthing():
-        click.echo("Error: Syncthing not installed", err=True)
+        console.print("[red]Error:[/] Syncthing not installed")
         sys.exit(1)
 
-    click.echo("Discovering peers on Tailscale network...")
+    console.print("[bold]Discovering peers on Tailscale network...[/]")
 
     # Start discovery server
     try:
         server = discovery.start_discovery_server()
-        click.echo(f"Started discovery server on port {discovery.DISCOVERY_PORT}")
+        console.print(f"[dim]Started discovery server on port {discovery.DISCOVERY_PORT}[/]")
     except OSError as e:
-        click.echo(f"Warning: Could not start discovery server: {e}", err=True)
+        console.print(f"[yellow]Warning:[/] Could not start discovery server: {e}")
 
     # Find peers
     peers = tailscale.get_online_peers()
     if not peers:
-        click.echo("No online peers found on Tailscale network")
+        console.print("[dim]No online peers found on Tailscale network[/]")
         return
 
-    click.echo(f"Found {len(peers)} online peer(s)")
-    click.echo()
+    console.print(f"Found [bold]{len(peers)}[/] online peer(s)")
+    console.print()
 
     # Try to discover each peer
     discovered = []
     for peer in peers:
-        click.echo(f"  Checking {peer.hostname} ({peer.tailscale_ip})...", nl=False)
+        console.print(f"  Checking [cyan]{peer.hostname}[/] ({peer.tailscale_ip})...", end="")
         info = discovery.discover_peer(peer.tailscale_ip, timeout=timeout)
         if info:
-            click.echo(click.style(" found!", fg="green"))
+            console.print(" [green]found![/]")
             info["tailscale_ip"] = peer.tailscale_ip
             info["tailscale_hostname"] = peer.hostname
             discovered.append(info)
         else:
-            click.echo(click.style(" not running scratch-sync", fg="yellow"))
+            console.print(" [yellow]not running scratch-sync[/]")
 
     if not discovered:
-        click.echo()
-        click.echo("No peers running scratch-sync found.")
-        click.echo("Make sure scratch-sync is installed and running on other devices.")
+        console.print()
+        console.print("[dim]No peers running scratch-sync found.[/]")
+        console.print("[dim]Make sure scratch-sync is installed and running on other devices.[/]")
         return
 
-    click.echo()
-    click.echo(f"Discovered {len(discovered)} peer(s) running scratch-sync:")
+    console.print()
+    console.print(f"[bold]Discovered {len(discovered)} peer(s) running scratch-sync:[/]")
 
     for info in discovered:
-        click.echo(f"  - {info.get('hostname')} ({info.get('tailscale_ip')})")
-        click.echo(f"    Device ID: {info.get('syncthing_device_id', 'unknown')[:20]}...")
+        console.print(f"  [cyan]•[/] {info.get('hostname')} [dim]({info.get('tailscale_ip')})[/]")
+        console.print(f"    [dim]Device ID: {info.get('syncthing_device_id', 'unknown')[:20]}...[/]")
 
-    click.echo()
+    console.print()
     if not click.confirm("Pair with these devices?"):
         return
 
@@ -257,42 +312,69 @@ def pair(timeout: float):
     for info in discovered:
         hostname = info.get("hostname") or info.get("tailscale_hostname")
         if discovery.auto_pair_with_peer(info):
-            click.echo(click.style(f"  Paired with {hostname}", fg="green"))
+            console.print(f"  [green]Paired with {hostname}[/]")
         else:
-            click.echo(click.style(f"  Failed to pair with {hostname}", fg="red"))
+            console.print(f"  [red]Failed to pair with {hostname}[/]")
 
-    click.echo()
-    click.echo("Done! Devices are now paired.")
-    click.echo("Folders will sync automatically when both devices have the same folder ID.")
+    console.print()
+    console.print("[bold green]Done![/] Devices are now paired.")
+    console.print("[dim]Folders will sync automatically when both devices have the same folder ID.[/]")
+
+
+def _get_state_style(state: str) -> str:
+    """Get rich style for a sync state."""
+    state_styles = {
+        "idle": "green",
+        "scanning": "yellow",
+        "syncing": "cyan",
+        "error": "red",
+        "unknown": "dim",
+    }
+    return state_styles.get(state, "dim")
 
 
 @main.command()
 def status():
-    """Show sync status."""
+    """Show current sync status.
+
+    Displays information about:
+      • Your device ID
+      • All [cyan]scratch-*[/] folders and their sync state
+      • Connected devices and their status
+    """
     if not syncthing.find_syncthing():
-        click.echo("Error: Syncthing not installed", err=True)
+        console.print("[red]Error:[/] Syncthing not installed", style="red")
         sys.exit(1)
 
     # Get device ID
     try:
         device_id = syncthing.get_device_id()
-        click.echo(f"Device ID: {device_id}")
+        console.print(f"[bold]Device ID:[/] [dim]{device_id}[/]")
     except Exception as e:
-        click.echo(f"Error getting device ID: {e}", err=True)
+        console.print(f"[red]Error getting device ID:[/] {e}")
 
     # List folders
     folders = syncthing.list_folders()
     scratch_folders = [f for f in folders if f.startswith("scratch-")]
 
-    click.echo()
-    click.echo(f"Scratch folders: {len(scratch_folders)}")
-    for folder_id in scratch_folders:
-        status = syncthing.get_folder_status(folder_id)
-        if status:
-            state = status.get("state", "unknown")
-            click.echo(f"  - {folder_id}: {state}")
-        else:
-            click.echo(f"  - {folder_id}: unknown")
+    console.print()
+    if scratch_folders:
+        folder_table = Table(title="Scratch Folders", box=None, padding=(0, 2))
+        folder_table.add_column("Folder ID", style="cyan")
+        folder_table.add_column("Status")
+
+        for folder_id in scratch_folders:
+            folder_status = syncthing.get_folder_status(folder_id)
+            if folder_status:
+                state = folder_status.get("state", "unknown")
+                style = _get_state_style(state)
+                folder_table.add_row(folder_id, f"[{style}]{state}[/]")
+            else:
+                folder_table.add_row(folder_id, "[dim]unknown[/]")
+
+        console.print(folder_table)
+    else:
+        console.print("[dim]No scratch folders configured[/]")
 
     # List devices
     devices = syncthing.list_devices()
@@ -301,51 +383,68 @@ def status():
 
     connections = syncthing.get_connections()
 
-    click.echo()
-    click.echo(f"Connected devices: {len(remote_devices)}")
-    for device_id in remote_devices:
-        conn = connections.get("connections", {}).get(device_id, {})
-        connected = conn.get("connected", False)
-        status_str = click.style("connected", fg="green") if connected else click.style("disconnected", fg="yellow")
-        click.echo(f"  - {device_id[:15]}... {status_str}")
+    console.print()
+    if remote_devices:
+        device_table = Table(title="Connected Devices", box=None, padding=(0, 2))
+        device_table.add_column("Device ID", style="dim")
+        device_table.add_column("Status")
+
+        for device_id in remote_devices:
+            conn = connections.get("connections", {}).get(device_id, {})
+            connected = conn.get("connected", False)
+            status_str = "[green]connected[/]" if connected else "[yellow]disconnected[/]"
+            device_table.add_row(f"{device_id[:20]}...", status_str)
+
+        console.print(device_table)
+    else:
+        console.print("[dim]No remote devices configured[/]")
 
 
 @main.command("list")
 def list_folders():
-    """List all scratch-sync managed folders."""
+    """List all scratch-sync managed folders.
+
+    Shows all Syncthing folders with IDs starting with [cyan]scratch-[/].
+    """
     if not syncthing.find_syncthing():
-        click.echo("Error: Syncthing not installed", err=True)
+        console.print("[red]Error:[/] Syncthing not installed")
         sys.exit(1)
 
     folders = syncthing.list_folders()
     scratch_folders = [f for f in folders if f.startswith("scratch-")]
 
     if not scratch_folders:
-        click.echo("No scratch-sync folders configured")
+        console.print("[dim]No scratch-sync folders configured[/]")
         return
 
-    click.echo("Scratch folders:")
+    console.print("[bold]Scratch folders:[/]")
     for folder_id in scratch_folders:
-        click.echo(f"  - {folder_id}")
+        console.print(f"  [cyan]•[/] {folder_id}")
 
 
 @main.command()
-@click.option("--port", "-p", default=discovery.DISCOVERY_PORT, help="Port to run discovery server on")
+@click.option("--port", "-p", default=discovery.DISCOVERY_PORT, show_default=True, help="Port to run discovery server on")
 def serve(port: int):
-    """Run the discovery server (for auto-pairing)."""
+    """Run the discovery server for auto-pairing.
+
+    Starts an HTTP server that responds to discovery requests from other
+    scratch-sync clients on the network. This enables automatic device pairing.
+
+    [dim]This is typically run automatically during [bold]scratch-sync pair[/].[/]
+    """
     if not syncthing.find_syncthing():
-        click.echo("Error: Syncthing not installed", err=True)
+        console.print("[red]Error:[/] Syncthing not installed")
         sys.exit(1)
 
-    click.echo(f"Starting discovery server on port {port}...")
-    click.echo("Press Ctrl+C to stop")
+    console.print(f"[bold]Starting discovery server on port [cyan]{port}[/]...[/]")
+    console.print("[dim]Press Ctrl+C to stop[/]")
 
     try:
         from http.server import HTTPServer
         server = HTTPServer(("0.0.0.0", port), discovery.DiscoveryHandler)
         server.serve_forever()
     except KeyboardInterrupt:
-        click.echo("\nStopping...")
+        console.print("\n[yellow]Stopping...[/]")
 
 
 if __name__ == "__main__":

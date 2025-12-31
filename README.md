@@ -45,7 +45,7 @@ Dependencies
   syncthing    running v2.0.12    ~/.local/bin/syncthing / autostart: launchd
 ```
 
-After installation, remember to **set up a password** for the Syncthing dashboard at `https://127.0.0.1:8384/`.
+After installation, remember to **set up a password** for the Syncthing dashboard at `http://127.0.0.1:8384/`.
 
 To check dependency status anytime:
 ```bash

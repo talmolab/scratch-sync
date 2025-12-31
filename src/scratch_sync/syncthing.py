@@ -190,7 +190,7 @@ def api_get(endpoint: str) -> dict | None:
 
     headers = {"X-API-Key": api_key}
 
-    # Try HTTPS first (Syncthing defaults to HTTPS), then fall back to HTTP
+    # Try HTTPS first, then fall back to HTTP (default is HTTP unless TLS is enabled)
     for scheme in ("https", "http"):
         url = f"{scheme}://localhost:8384{endpoint}"
         try:

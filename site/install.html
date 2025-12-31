@@ -237,9 +237,9 @@ uv pip install scratch-sync</code></pre>
 syncthing --version
 
 # Check it's running (opens web UI)
-open https://127.0.0.1:8384  # macOS
-xdg-open https://127.0.0.1:8384  # Linux
-start https://127.0.0.1:8384  # Windows
+open http://127.0.0.1:8384  # macOS
+xdg-open http://127.0.0.1:8384  # Linux
+start http://127.0.0.1:8384  # Windows
 
 # Get your device ID
 syncthing cli show system | grep myID</code></pre>
@@ -251,11 +251,10 @@ syncthing cli show system | grep myID</code></pre>
     <p><strong>Important:</strong> After installation, set up a password for the Syncthing dashboard to secure your instance.</p>
   </div>
 
-  <p>The Syncthing dashboard is accessible at <a href="https://127.0.0.1:8384/">https://127.0.0.1:8384/</a></p>
+  <p>The Syncthing dashboard is accessible at <a href="http://127.0.0.1:8384/">http://127.0.0.1:8384/</a></p>
 
   <p>On first visit:</p>
   <ol>
-    <li><strong>Accept the self-signed certificate warning</strong> &mdash; Syncthing uses HTTPS with a self-signed certificate</li>
     <li>Go to <strong>Actions &gt; Settings &gt; GUI</strong></li>
     <li>Set a <strong>username and password</strong></li>
     <li>Click <strong>Save</strong></li>

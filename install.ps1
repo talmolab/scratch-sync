@@ -321,12 +321,11 @@ function Print-Instructions {
     Write-Host "Set up a password for the Syncthing dashboard"
     Write-Host ""
     Write-Host "  The dashboard is accessible at:"
-    Write-Host "    https://127.0.0.1:8384/" -ForegroundColor Blue
+    Write-Host "    http://127.0.0.1:8384/" -ForegroundColor Blue
     Write-Host ""
     Write-Host "  On first visit:"
-    Write-Host "    1. Accept the self-signed certificate warning"
-    Write-Host "    2. Go to Actions > Settings > GUI"
-    Write-Host "    3. Set a username and password"
+    Write-Host "    1. Go to Actions > Settings > GUI"
+    Write-Host "    2. Set a username and password"
     Write-Host ""
     Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Yellow
     Write-Host ""

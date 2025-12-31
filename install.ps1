@@ -21,9 +21,10 @@ param(
 )
 
 # Support environment variables for piped execution (iwr | iex)
-if ($env:UNINSTALL -eq "1") { $Uninstall = $true }
-if ($env:ALLUSERS -eq "1") { $AllUsers = $true }
-if ($env:STATUS -eq "1") { $Status = $true }
+# Clear them after reading to prevent persistence across runs
+if ($env:UNINSTALL -eq "1") { $Uninstall = $true; $env:UNINSTALL = $null }
+if ($env:ALLUSERS -eq "1") { $AllUsers = $true; $env:ALLUSERS = $null }
+if ($env:STATUS -eq "1") { $Status = $true; $env:STATUS = $null }
 
 $ErrorActionPreference = "Stop"
 

@@ -174,6 +174,8 @@ INSTALL_DIR=/opt/bin curl -LsSf https://scratch.tlab.sh/install.sh | sh</code></
 
   <h3>Windows Options</h3>
 
+  <p>When running the script directly (after downloading):</p>
+
   <table>
     <tr>
       <th>Parameter</th>
@@ -193,19 +195,43 @@ INSTALL_DIR=/opt/bin curl -LsSf https://scratch.tlab.sh/install.sh | sh</code></
     </tr>
   </table>
 
+  <p>Environment variables (for remote execution with <code>iwr | iex</code>):</p>
+
+  <table>
+    <tr>
+      <th>Variable</th>
+      <th>Description</th>
+    </tr>
+    <tr>
+      <td><code>STATUS=1</code></td>
+      <td>Show dependency status without installing</td>
+    </tr>
+    <tr>
+      <td><code>UNINSTALL=1</code></td>
+      <td>Remove Syncthing and scheduled task</td>
+    </tr>
+    <tr>
+      <td><code>ALLUSERS=1</code></td>
+      <td>Install as Windows service (requires admin)</td>
+    </tr>
+  </table>
+
   <p>Examples:</p>
 
   <div class="code-block">
-    <pre><code># Download and run with options
+    <pre><code># Check status (remote)
+$env:STATUS=1; iwr -useb https://scratch.tlab.sh/install.ps1 | iex
+
+# Uninstall (remote)
+$env:UNINSTALL=1; iwr -useb https://scratch.tlab.sh/install.ps1 | iex
+
+# Install for all users (remote, requires admin)
+$env:ALLUSERS=1; iwr -useb https://scratch.tlab.sh/install.ps1 | iex
+
+# Download and run with parameters
 Invoke-WebRequest -Uri https://scratch.tlab.sh/install.ps1 -OutFile install.ps1
-
-# Check dependency status
 .\install.ps1 -Status
-
-# Uninstall
 .\install.ps1 -Uninstall
-
-# Install for all users (as Windows service)
 .\install.ps1 -AllUsers</code></pre>
   </div>
 

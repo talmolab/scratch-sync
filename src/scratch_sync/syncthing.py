@@ -141,11 +141,7 @@ def add_device_to_folder(folder_id: str, device_id: str) -> bool:
 
 def get_folder_status(folder_id: str) -> dict | None:
     """Get the status of a folder."""
-    result = run_syncthing_cli("show", "folder-status", folder_id)
-    if result.returncode != 0:
-        return None
-
-    return json.loads(result.stdout)
+    return api_get(f"/rest/db/status?folder={folder_id}")
 
 
 def get_connections() -> dict:
@@ -155,3 +151,75 @@ def get_connections() -> dict:
         return {}
 
     return json.loads(result.stdout)
+
+
+def get_gui_address() -> str | None:
+    """Get current GUI listen address."""
+    result = run_syncthing_cli("config", "gui", "raw-address", "get")
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
+def set_gui_address(address: str) -> bool:
+    """Set GUI listen address (requires Syncthing restart to take effect)."""
+    result = run_syncthing_cli("config", "gui", "raw-address", "set", address)
+    return result.returncode == 0
+
+
+def is_gui_localhost_only() -> bool:
+    """Check if GUI is bound to localhost only."""
+    address = get_gui_address()
+    if not address:
+        return True
+    host = address.split(":")[0] if ":" in address else address
+    return host in ("127.0.0.1", "localhost", "::1")
+
+
+def get_api_key() -> str | None:
+    """Get the local Syncthing API key."""
+    result = run_syncthing_cli("config", "gui", "apikey", "get")
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
+def api_get(endpoint: str) -> dict | None:
+    """Query local Syncthing REST API."""
+    import httpx
+
+    api_key = get_api_key()
+    if not api_key:
+        return None
+
+    url = f"http://localhost:8384{endpoint}"
+    headers = {"X-API-Key": api_key}
+    try:
+        with httpx.Client(timeout=5.0) as client:
+            response = client.get(url, headers=headers)
+            if response.status_code == 200:
+                return response.json()
+    except Exception:
+        pass
+    return None
+
+
+def get_device_stats() -> dict:
+    """Get per-device statistics."""
+    return api_get("/rest/stats/device") or {}
+
+
+def get_config_devices() -> list[dict]:
+    """Get full device configuration (with names and addresses)."""
+    return api_get("/rest/config/devices") or []
+
+
+def get_config_folders() -> list[dict]:
+    """Get full folder configuration."""
+    return api_get("/rest/config/folders") or []
+
+
+def get_system_status() -> dict | None:
+    """Get system status from REST API."""
+    return api_get("/rest/system/status")
+
+
+def get_pending_devices() -> dict:
+    """Get pending device pair requests."""
+    return api_get("/rest/cluster/pending/devices") or {}

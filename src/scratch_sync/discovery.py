@@ -1,100 +1,68 @@
-"""Device discovery for auto-pairing."""
+"""Device discovery using Syncthing's REST API.
 
-import json
-import socket
-import threading
-from http.server import HTTPServer, BaseHTTPRequestHandler
+Uses Syncthing's noauth endpoint to discover device IDs without requiring
+SSH access, API keys, or a custom discovery server.
+"""
 
 import httpx
 
-from scratch_sync import syncthing, tailscale
-
-DISCOVERY_PORT = 8385
+from scratch_sync import syncthing
 
 
-class DiscoveryHandler(BaseHTTPRequestHandler):
-    """HTTP handler for device discovery."""
+def discover_syncthing_peer(ip: str, port: int = 8384, timeout: float = 3.0) -> dict | None:
+    """
+    Discover Syncthing device ID from a peer using the noauth endpoint.
 
-    def log_message(self, format, *args):
-        """Suppress default logging."""
-        pass
+    The X-Syncthing-Id header is returned on all HTTP responses from Syncthing,
+    including unauthenticated endpoints like /rest/noauth/health.
 
-    def do_GET(self):
-        """Handle GET requests."""
-        if self.path == "/info":
-            self.send_info()
-        else:
-            self.send_error(404)
+    Args:
+        ip: The IP address of the peer (e.g., Tailscale IP)
+        port: Syncthing GUI port (default 8384)
+        timeout: Request timeout in seconds
 
-    def send_info(self):
-        """Send device info for discovery."""
-        # Only respond to Tailscale IPs (100.x.y.z)
-        client_ip = self.client_address[0]
-        if not client_ip.startswith("100."):
-            self.send_error(403, "Forbidden: not a Tailscale IP")
-            return
+    Returns:
+        Dictionary with peer info or None if not reachable
+    """
+    url = f"http://{ip}:{port}/rest/noauth/health"
 
-        try:
-            device_id = syncthing.get_device_id()
-            hostname = tailscale.get_hostname() or socket.gethostname()
-
-            info = {
-                "hostname": hostname,
-                "syncthing_device_id": device_id,
-                "syncthing_port": 22000,
-                "version": "0.1.0",
-            }
-
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps(info).encode())
-
-        except Exception as e:
-            self.send_error(500, str(e))
-
-
-def start_discovery_server(port: int = DISCOVERY_PORT) -> HTTPServer:
-    """Start the discovery server in a background thread."""
-    server = HTTPServer(("0.0.0.0", port), DiscoveryHandler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    return server
-
-
-def discover_peer(ip: str, port: int = DISCOVERY_PORT, timeout: float = 2.0) -> dict | None:
-    """Try to discover a peer at the given IP."""
     try:
-        response = httpx.get(
-            f"http://{ip}:{port}/info",
-            timeout=timeout,
-        )
-        if response.status_code == 200:
-            return response.json()
+        with httpx.Client(timeout=timeout) as client:
+            response = client.get(url)
+
+            if response.status_code == 200:
+                device_id = response.headers.get("X-Syncthing-Id")
+                version = response.headers.get("X-Syncthing-Version", "unknown")
+
+                if device_id:
+                    return {
+                        "hostname": None,  # Will be filled from Tailscale
+                        "tailscale_ip": ip,
+                        "syncthing_device_id": device_id,
+                        "syncthing_version": version,
+                        "syncthing_port": 22000,  # Data sync port
+                    }
+    except (httpx.ConnectError, httpx.TimeoutException):
+        pass
     except Exception:
         pass
+
     return None
 
 
-def discover_all_peers(timeout: float = 2.0) -> list[dict]:
-    """Discover all online peers running scratch-sync."""
-    peers = tailscale.get_online_peers()
-    discovered = []
-
-    for peer in peers:
-        if peer.tailscale_ip:
-            info = discover_peer(peer.tailscale_ip, timeout=timeout)
-            if info:
-                info["tailscale_ip"] = peer.tailscale_ip
-                info["tailscale_hostname"] = peer.hostname
-                info["os"] = peer.os
-                discovered.append(info)
-
-    return discovered
-
-
 def auto_pair_with_peer(peer_info: dict) -> bool:
-    """Automatically pair with a discovered peer."""
+    """
+    Automatically pair with a discovered peer.
+
+    Adds the peer's device to local Syncthing config and sets
+    the Tailscale IP as the connection address.
+
+    Args:
+        peer_info: Dictionary with peer information from discover_syncthing_peer()
+
+    Returns:
+        True if pairing succeeded
+    """
     device_id = peer_info.get("syncthing_device_id")
     ip = peer_info.get("tailscale_ip")
     hostname = peer_info.get("hostname") or peer_info.get("tailscale_hostname")

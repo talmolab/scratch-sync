@@ -197,12 +197,46 @@ function Get-LatestSyncthingVersion {
     }
 }
 
+# Check if installation is complete (not just binary exists)
+function Test-InstallationComplete {
+    $result = @{
+        HasBinary = Test-Path "$InstallDir\syncthing.exe"
+        HasUninstaller = Test-Path "$InstallDir\uninstall\unins000.exe"
+        HasStartMenu = Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Syncthing"
+        HasAutostart = $false
+        Version = $null
+    }
+
+    # Check autostart mechanisms
+    $task = schtasks /Query /TN "Syncthing" 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        $result.HasAutostart = $true
+    } else {
+        $startupPath = [Environment]::GetFolderPath('Startup')
+        if (Test-Path "$startupPath\Syncthing.lnk") {
+            $result.HasAutostart = $true
+        }
+    }
+
+    # Get version if binary exists
+    if ($result.HasBinary) {
+        $versionOutput = & "$InstallDir\syncthing.exe" --version 2>$null | Select-Object -First 1
+        if ($versionOutput -match 'v?([\d\.]+)') {
+            $result.Version = "v$($matches[1])"
+        }
+    }
+
+    $result.IsComplete = $result.HasBinary -and $result.HasUninstaller -and $result.HasStartMenu
+    return $result
+}
+
 function Install-Syncthing {
     # Check if already installed
-    if (Test-Path "$InstallDir\syncthing.exe") {
-        $version = & "$InstallDir\syncthing.exe" --version 2>$null | Select-Object -First 1
-        if ($version -match 'v([\d\.]+)') {
-            Write-Success "Syncthing already installed: $($matches[0])"
+    $installStatus = Test-InstallationComplete
+
+    if ($installStatus.HasBinary) {
+        if ($installStatus.IsComplete) {
+            Write-Success "Syncthing already installed: $($installStatus.Version)"
             Write-Host ""
             Write-Host "  Location: $InstallDir\syncthing.exe"
             Write-Host "  Config:   $ConfigDir"
@@ -210,6 +244,22 @@ function Install-Syncthing {
             Write-Host ""
             Write-Info "To reinstall, run: .\install.ps1 -Uninstall; .\install.ps1"
             return
+        } else {
+            # Partial installation detected
+            Write-Warning "Incomplete Syncthing installation detected:"
+            if (-not $installStatus.HasUninstaller) { Write-Host "  - Missing: uninstaller" }
+            if (-not $installStatus.HasStartMenu) { Write-Host "  - Missing: Start Menu shortcuts" }
+            if (-not $installStatus.HasAutostart) { Write-Host "  - Missing: autostart configuration" }
+            Write-Host ""
+            Write-Info "Cleaning up and reinstalling..."
+
+            # Stop syncthing if running
+            Stop-Process -Name "syncthing" -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 1
+
+            # Remove partial installation
+            Remove-Item -Path $InstallDir -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item -Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Syncthing" -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
 
@@ -245,7 +295,7 @@ function Install-Syncthing {
             Write-Info "Installing for current user..."
         }
 
-        # Run installer (don't use -Wait as it hangs after silent install completes)
+        # Run installer
         Write-Info "Running SyncthingWindowsSetup (silent)..."
         $process = Start-Process -FilePath $setupPath -ArgumentList $setupArgs -PassThru
 
@@ -258,18 +308,50 @@ function Install-Syncthing {
         }
 
         if (-not $process.HasExited) {
-            Write-Warning "Installer is taking longer than expected, but may still complete..."
+            Write-Warning "Installer is taking longer than expected..."
         } elseif ($process.ExitCode -ne 0) {
             Write-Err "Installation failed with exit code: $($process.ExitCode)"
         }
 
-        # Verify installation succeeded by checking for binary
-        Start-Sleep -Seconds 2  # Give it a moment to finish
-        if (Test-Path "$InstallDir\syncthing.exe") {
+        # Wait for any child processes (setup may spawn them)
+        Write-Info "Waiting for installation to complete..."
+        $childWait = 0
+        $maxChildWait = 30
+        while ($childWait -lt $maxChildWait) {
+            $setupProcs = Get-Process -Name "syncthing-windows-setup*" -ErrorAction SilentlyContinue
+            if (-not $setupProcs) { break }
+            Start-Sleep -Seconds 1
+            $childWait++
+        }
+
+        # Additional wait for file system operations to complete
+        Start-Sleep -Seconds 3
+
+        # Verify installation
+        $finalStatus = Test-InstallationComplete
+
+        if (-not $finalStatus.HasBinary) {
+            Write-Err "Installation failed - syncthing.exe not found"
+        }
+
+        if ($finalStatus.IsComplete) {
             Write-Success "Installation complete!"
         } else {
-            Write-Err "Installation may have failed - syncthing.exe not found"
+            Write-Warning "Installation partially complete - some components may be missing:"
+            if (-not $finalStatus.HasUninstaller) {
+                Write-Host "  - Uninstaller not created (manual removal may be needed)"
+            }
+            if (-not $finalStatus.HasStartMenu) {
+                Write-Host "  - Start Menu shortcuts not created"
+            }
+            if (-not $finalStatus.HasAutostart) {
+                Write-Host "  - Autostart not configured"
+                Write-Host ""
+                Write-Info "You can start Syncthing manually with:"
+                Write-Host "  & `"$InstallDir\syncthing.exe`" --no-browser"
+            }
         }
+
         Write-Host ""
         Print-Instructions
     }
@@ -280,7 +362,22 @@ function Install-Syncthing {
 }
 
 function Uninstall-Syncthing {
-    # Find uninstaller - check both possible locations
+    # Check current installation status
+    $installStatus = Test-InstallationComplete
+
+    if (-not $installStatus.HasBinary -and -not $installStatus.HasUninstaller -and -not $installStatus.HasStartMenu) {
+        Write-Err "Syncthing does not appear to be installed."
+    }
+
+    # Stop syncthing if running
+    $stProcess = Get-Process -Name "syncthing" -ErrorAction SilentlyContinue
+    if ($stProcess) {
+        Write-Info "Stopping Syncthing..."
+        Stop-Process -Name "syncthing" -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 2
+    }
+
+    # Try official uninstaller first
     $possiblePaths = @(
         "$env:LOCALAPPDATA\Programs\Syncthing\uninstall\unins000.exe",
         "$env:ProgramFiles\Syncthing\uninstall\unins000.exe"
@@ -294,17 +391,60 @@ function Uninstall-Syncthing {
         }
     }
 
-    if (-not $uninstaller) {
-        Write-Err "Syncthing uninstaller not found. Is it installed?"
-    }
+    if ($uninstaller) {
+        Write-Info "Running uninstaller (silent)..."
+        $process = Start-Process -FilePath $uninstaller -ArgumentList "/silent" -Wait -PassThru
 
-    Write-Info "Running uninstaller (silent)..."
-    $process = Start-Process -FilePath $uninstaller -ArgumentList "/silent" -Wait -PassThru
-
-    if ($process.ExitCode -eq 0) {
-        Write-Success "Uninstall complete!"
+        if ($process.ExitCode -eq 0) {
+            Write-Success "Uninstall complete!"
+        } else {
+            Write-Warning "Uninstaller exited with code: $($process.ExitCode)"
+        }
     } else {
-        Write-Warning "Uninstaller exited with code: $($process.ExitCode)"
+        # No uninstaller - perform manual cleanup
+        Write-Warning "No uninstaller found - performing manual cleanup..."
+
+        # Remove install directory
+        $dirsToRemove = @(
+            "$env:LOCALAPPDATA\Programs\Syncthing",
+            "$env:ProgramFiles\Syncthing"
+        )
+        foreach ($dir in $dirsToRemove) {
+            if (Test-Path $dir) {
+                Write-Info "Removing $dir..."
+                Remove-Item -Path $dir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        # Remove Start Menu shortcuts
+        $startMenuPath = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Syncthing"
+        if (Test-Path $startMenuPath) {
+            Write-Info "Removing Start Menu shortcuts..."
+            Remove-Item -Path $startMenuPath -Recurse -Force -ErrorAction SilentlyContinue
+        }
+
+        # Remove Startup shortcut if exists
+        $startupPath = [Environment]::GetFolderPath('Startup')
+        $startupShortcut = "$startupPath\Syncthing.lnk"
+        if (Test-Path $startupShortcut) {
+            Write-Info "Removing startup shortcut..."
+            Remove-Item -Path $startupShortcut -Force -ErrorAction SilentlyContinue
+        }
+
+        # Try to remove scheduled task if exists
+        $taskExists = schtasks /Query /TN "Syncthing" 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Info "Removing scheduled task..."
+            schtasks /Delete /TN "Syncthing" /F 2>$null
+        }
+
+        Write-Success "Manual cleanup complete!"
+        Write-Host ""
+        Write-Info "Note: Configuration data was preserved at:"
+        Write-Host "  $env:LOCALAPPDATA\Syncthing"
+        Write-Host ""
+        Write-Host "  To remove config data, run:"
+        Write-Host "  Remove-Item -Path `"$env:LOCALAPPDATA\Syncthing`" -Recurse -Force"
     }
 }
 

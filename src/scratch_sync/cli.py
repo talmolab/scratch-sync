@@ -586,6 +586,58 @@ def status():
     if not syncthing.is_syncthing_running():
         console.print()
         console.print("[yellow]Warning:[/] Syncthing is not running. Start it to see sync status.")
+        console.print()
+
+        # Provide helpful restart instructions based on service configuration
+        service_status = syncthing.get_service_status()
+        method = service_status.get("method")
+
+        if sys.platform == "darwin":
+            if method == "launchd":
+                plist_path = "~/Library/LaunchAgents/syncthing.plist"
+                if service_status.get("enabled"):
+                    console.print("[dim]To restart Syncthing:[/]")
+                    console.print(f"  [cyan]launchctl kickstart -k gui/$(id -u)/syncthing[/]")
+                else:
+                    console.print("[dim]To load and start Syncthing:[/]")
+                    console.print(f"  [cyan]launchctl load {plist_path}[/]")
+            elif method == "homebrew":
+                console.print("[dim]To start Syncthing:[/]")
+                console.print("  [cyan]brew services start syncthing[/]")
+            else:
+                console.print("[dim]To start Syncthing manually:[/]")
+                console.print("  [cyan]syncthing serve --no-browser &[/]")
+                console.print()
+                console.print("[dim]To enable autostart, run:[/]")
+                console.print("  [cyan]scratch-sync init[/]")
+
+        elif sys.platform == "linux":
+            if method == "systemd":
+                console.print("[dim]To start Syncthing:[/]")
+                console.print("  [cyan]systemctl --user start syncthing[/]")
+            else:
+                console.print("[dim]To start Syncthing manually:[/]")
+                console.print("  [cyan]syncthing serve --no-browser &[/]")
+                console.print()
+                console.print("[dim]To enable autostart, run:[/]")
+                console.print("  [cyan]scratch-sync init[/]")
+
+        elif sys.platform == "win32":
+            if method == "task_scheduler":
+                console.print("[dim]To start Syncthing:[/]")
+                console.print("  [cyan]schtasks /Run /TN Syncthing[/]")
+            else:
+                console.print("[dim]To start Syncthing manually:[/]")
+                console.print("  [cyan]syncthing serve --no-browser[/]")
+                console.print()
+                console.print("[dim]To enable autostart, run:[/]")
+                console.print("  [cyan]scratch-sync init[/]")
+
+        else:
+            # Fallback for other platforms
+            console.print("[dim]To start Syncthing manually:[/]")
+            console.print("  [cyan]syncthing serve --no-browser &[/]")
+
         return
 
     # === This Device Section ===

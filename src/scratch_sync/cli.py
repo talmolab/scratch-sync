@@ -172,6 +172,14 @@ def init(path: Path | None, name: str | None):
     if path is None:
         path = Path.cwd()
 
+    # If we're inside a scratch/ directory, use the parent instead
+    if path.name == "scratch":
+        parent = path.parent
+        # Check if parent looks like a repo root (has .git or .gitignore)
+        if (parent / ".git").exists() or (parent / ".gitignore").exists():
+            console.print(f"[dim]Detected running from inside scratch/, using parent: {parent}[/]")
+            path = parent
+
     # Find scratch directory
     scratch_path = path / "scratch"
     if not scratch_path.exists():

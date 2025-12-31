@@ -1,6 +1,8 @@
 """Syncthing CLI and API interactions."""
 
 import json
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -8,23 +10,23 @@ from pathlib import Path
 
 def find_syncthing() -> str | None:
     """Find syncthing binary in common locations."""
-    common_paths = [
-        Path.home() / ".local" / "bin" / "syncthing",
-        Path("/usr/local/bin/syncthing"),
-        Path("/opt/homebrew/bin/syncthing"),
-    ]
+    # Check PATH first (cross-platform)
+    binary = shutil.which("syncthing")
+    if binary:
+        return binary
 
-    # Check PATH first
-    try:
-        result = subprocess.run(
-            ["which", "syncthing"],
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode == 0:
-            return result.stdout.strip()
-    except Exception:
-        pass
+    # Platform-specific common paths
+    if sys.platform == "win32":
+        common_paths = [
+            Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Syncthing" / "syncthing.exe",
+            Path("C:/Program Files/Syncthing/syncthing.exe"),
+        ]
+    else:
+        common_paths = [
+            Path.home() / ".local" / "bin" / "syncthing",
+            Path("/usr/local/bin/syncthing"),
+            Path("/opt/homebrew/bin/syncthing"),
+        ]
 
     # Check common paths
     for path in common_paths:

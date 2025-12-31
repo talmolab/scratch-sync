@@ -122,7 +122,7 @@ def init(path: Path | None, name: str | None):
     # Check syncthing is available
     if not syncthing.find_syncthing():
         click.echo("Error: Syncthing not installed. Run the installer first:", err=True)
-        click.echo("  curl -LsSf https://raw.githubusercontent.com/talmolab/scratch-sync/main/install.sh | sh", err=True)
+        click.echo("  curl -LsSf https://scratch.tlab.sh/install.sh | sh", err=True)
         sys.exit(1)
 
     # Determine path

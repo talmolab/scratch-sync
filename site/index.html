@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>scratch-sync - Sync private scratch folders across machines</title>
+  <meta name="description" content="Sync private scratch/ folders across machines using Syncthing over Tailscale. Works on macOS, Linux, and Windows.">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <nav>
+    <a href="/">Home</a>
+    <a href="/install.html">Installation</a>
+    <a href="/cli.html">CLI Reference</a>
+    <a href="https://github.com/talmolab/scratch-sync">GitHub</a>
+  </nav>
+
+  <h1>scratch-sync</h1>
+  <p class="tagline">Sync private scratch/ folders across machines using Syncthing over Tailscale</p>
+
+  <h2>Install</h2>
+
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('unix')">macOS / Linux</button>
+    <button class="tab" onclick="showTab('windows')">Windows</button>
+  </div>
+
+  <div id="unix" class="tab-content active">
+    <div class="code-block">
+      <pre><code>curl -LsSf https://scratch.tlab.sh/install.sh | sh</code></pre>
+      <button class="copy-btn" onclick="copyCode(this, 'curl -LsSf https://scratch.tlab.sh/install.sh | sh')">Copy</button>
+    </div>
+  </div>
+
+  <div id="windows" class="tab-content">
+    <div class="code-block">
+      <pre><code>iwr -useb https://scratch.tlab.sh/install.ps1 | iex</code></pre>
+      <button class="copy-btn" onclick="copyCode(this, 'iwr -useb https://scratch.tlab.sh/install.ps1 | iex')">Copy</button>
+    </div>
+  </div>
+
+  <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.5rem;">
+    Want to inspect the script first? Run <code>curl -LsSf https://scratch.tlab.sh/install.sh | less</code>
+  </p>
+
+  <h2>Quick Start</h2>
+
+  <ol class="steps">
+    <li>
+      <strong>Install Syncthing</strong> using the command above. This downloads Syncthing and sets it up as a background service.
+    </li>
+    <li>
+      <strong>Initialize in a git repo</strong> with a scratch/ folder:
+      <div class="code-block">
+        <pre><code>cd ~/code/my-project
+uvx scratch-sync init</code></pre>
+        <button class="copy-btn" onclick="copyCode(this, 'uvx scratch-sync init')">Copy</button>
+      </div>
+    </li>
+    <li>
+      <strong>Pair with other devices</strong> on your Tailscale network:
+      <div class="code-block">
+        <pre><code>uvx scratch-sync pair</code></pre>
+        <button class="copy-btn" onclick="copyCode(this, 'uvx scratch-sync pair')">Copy</button>
+      </div>
+    </li>
+  </ol>
+
+  <h2>What It Does</h2>
+
+  <p>Many developers use a <code>scratch/</code> folder in their repos for notes, experiments, and work-in-progress that shouldn't be in git but should sync across their machines.</p>
+
+  <p>scratch-sync uses <a href="https://syncthing.net/">Syncthing</a> to sync these folders peer-to-peer over your <a href="https://tailscale.com/">Tailscale</a> network &mdash; no cloud storage, no configuration hell.</p>
+
+  <div class="diagram">
+┌─────────────────┐     Tailscale      ┌─────────────────┐
+│  Linux Box      │◄──────────────────►│  Mac Laptop     │
+│ ~/code/sleap-io │                    │ ~/sleap-io      │
+│   └── scratch/  │   folder-id:       │   └── scratch/  │
+│                 │  "scratch-sleap-io"│                 │
+└────────┬────────┘                    └────────┬────────┘
+         │            Tailscale                 │
+         └──────────────┬───────────────────────┘
+                        ▼
+              ┌─────────────────┐
+              │  Windows PC     │
+              │ D:\sleap-io     │
+              │   └── scratch/  │
+              └─────────────────┘</div>
+
+  <p>The key insight: Syncthing folder IDs just need to match across devices. The actual filesystem paths can be completely different.</p>
+
+  <h2>Features</h2>
+
+  <div class="features">
+    <div class="feature">
+      <h3>Cross-Platform</h3>
+      <p>Works on macOS, Linux, and Windows with native installers.</p>
+    </div>
+    <div class="feature">
+      <h3>Private & Secure</h3>
+      <p>Peer-to-peer sync over Tailscale. No cloud relay, no third parties.</p>
+    </div>
+    <div class="feature">
+      <h3>Zero Config</h3>
+      <p>Auto-discovers Tailscale peers. One command to pair devices.</p>
+    </div>
+    <div class="feature">
+      <h3>Git-Friendly</h3>
+      <p>Works with your existing .gitignore. scratch/ stays local.</p>
+    </div>
+  </div>
+
+  <h2>Prerequisites</h2>
+
+  <ul>
+    <li><a href="https://tailscale.com/download">Tailscale</a> installed and connected on all machines</li>
+    <li>All machines on the same Tailnet</li>
+    <li><a href="https://github.com/astral-sh/uv">uv</a> (for the CLI) &mdash; or use pip: <code>pip install scratch-sync</code></li>
+  </ul>
+
+  <footer>
+    <a href="https://github.com/talmolab/scratch-sync">GitHub</a>
+    <a href="/install.html">Installation Guide</a>
+    <a href="/cli.html">CLI Reference</a>
+    <a href="https://pypi.org/project/scratch-sync/">PyPI</a>
+  </footer>
+
+  <script>
+    function showTab(id) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      document.querySelector(`[onclick="showTab('${id}')"]`).classList.add('active');
+      document.getElementById(id).classList.add('active');
+    }
+
+    function copyCode(btn, text) {
+      navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = 'Copy';
+          btn.classList.remove('copied');
+        }, 2000);
+      });
+    }
+  </script>
+</body>
+</html>

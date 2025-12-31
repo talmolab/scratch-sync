@@ -1,6 +1,6 @@
 #!/bin/sh
 # scratch-sync installer
-# Usage: curl -LsSf https://raw.githubusercontent.com/talmo/scratch-sync/main/install.sh | sh
+# Usage: curl -LsSf https://scratch.tlab.sh/install.sh | sh
 #
 # Commands (pass as argument or environment variable):
 #   --uninstall, UNINSTALL=1   - Uninstall syncthing
@@ -12,10 +12,10 @@
 #   NO_SERVICE     - Set to 1 to skip service setup
 #
 # Examples:
-#   curl -LsSf https://raw.githubusercontent.com/talmolab/scratch-sync/main/install.sh | sh
-#   curl -LsSf .../install.sh | sh -s -- --uninstall  # Uninstall
-#   curl -LsSf .../install.sh | sh -s -- --upgrade    # Upgrade
-#   curl -LsSf .../install.sh | sh -s -- -y           # Install without prompts
+#   curl -LsSf https://scratch.tlab.sh/install.sh | sh
+#   curl -LsSf https://scratch.tlab.sh/install.sh | sh -s -- --uninstall
+#   curl -LsSf https://scratch.tlab.sh/install.sh | sh -s -- --upgrade
+#   curl -LsSf https://scratch.tlab.sh/install.sh | sh -s -- -y
 
 set -e
 

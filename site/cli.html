@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CLI Reference - scratch-sync</title>
+  <meta name="description" content="Command-line interface reference for scratch-sync.">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <nav>
+    <a href="/">Home</a>
+    <a href="/install.html">Installation</a>
+    <a href="/cli.html">CLI Reference</a>
+    <a href="https://github.com/talmolab/scratch-sync">GitHub</a>
+  </nav>
+
+  <h1>CLI Reference</h1>
+  <p class="tagline">Command-line interface for managing scratch-sync folders</p>
+
+  <h2>Installation</h2>
+
+  <p>The scratch-sync CLI is a Python package. You can run it without installing using <code>uvx</code>:</p>
+
+  <div class="code-block">
+    <pre><code>uvx scratch-sync --help</code></pre>
+    <button class="copy-btn" onclick="copyCode(this, 'uvx scratch-sync --help')">Copy</button>
+  </div>
+
+  <p>Or install it globally:</p>
+
+  <div class="code-block">
+    <pre><code># With pip
+pip install scratch-sync
+
+# With uv
+uv pip install scratch-sync</code></pre>
+  </div>
+
+  <h2>Commands</h2>
+
+  <h3>scratch-sync init</h3>
+
+  <p>Initialize scratch-sync in a git repository. This adds the <code>scratch/</code> folder to Syncthing.</p>
+
+  <div class="code-block">
+    <pre><code>scratch-sync init [PATH] [--name NAME]</code></pre>
+  </div>
+
+  <table>
+    <tr>
+      <th>Argument</th>
+      <th>Description</th>
+    </tr>
+    <tr>
+      <td><code>PATH</code></td>
+      <td>Path to the git repository (default: current directory)</td>
+    </tr>
+    <tr>
+      <td><code>--name, -n</code></td>
+      <td>Custom name for the sync folder (default: repo name)</td>
+    </tr>
+  </table>
+
+  <p><strong>What it does:</strong></p>
+  <ol>
+    <li>Finds or creates the <code>scratch/</code> directory</li>
+    <li>Adds it to Syncthing with folder ID <code>scratch-{reponame}</code></li>
+    <li>Adds all known Syncthing devices to the folder</li>
+    <li>Creates a default <code>.stignore</code> file</li>
+    <li>Adds <code>scratch/</code> to <code>.gitignore</code> if not already present</li>
+  </ol>
+
+  <p><strong>Example:</strong></p>
+
+  <div class="code-block">
+    <pre><code># Initialize in current repo
+cd ~/code/my-project
+uvx scratch-sync init
+
+# Initialize with custom name
+uvx scratch-sync init --name my-notes
+
+# Initialize a specific repo
+uvx scratch-sync init ~/code/other-project</code></pre>
+  </div>
+
+  <h3>scratch-sync pair</h3>
+
+  <p>Discover and pair with other devices running scratch-sync on your Tailscale network.</p>
+
+  <div class="code-block">
+    <pre><code>scratch-sync pair [--timeout SECONDS]</code></pre>
+  </div>
+
+  <table>
+    <tr>
+      <th>Option</th>
+      <th>Description</th>
+    </tr>
+    <tr>
+      <td><code>--timeout, -t</code></td>
+      <td>Discovery timeout in seconds (default: 3.0)</td>
+    </tr>
+  </table>
+
+  <p><strong>What it does:</strong></p>
+  <ol>
+    <li>Starts a local discovery server</li>
+    <li>Queries all online Tailscale peers</li>
+    <li>Finds peers running scratch-sync</li>
+    <li>Exchanges Syncthing device IDs</li>
+    <li>Adds discovered devices to Syncthing config</li>
+  </ol>
+
+  <p><strong>Example:</strong></p>
+
+  <div class="code-block">
+    <pre><code># Discover and pair with all devices
+uvx scratch-sync pair
+
+# With longer timeout for slow networks
+uvx scratch-sync pair --timeout 10</code></pre>
+  </div>
+
+  <div class="note">
+    <p><strong>Note:</strong> Both devices must be running the <code>scratch-sync pair</code> command (or <code>scratch-sync serve</code>) at the same time for auto-discovery to work.</p>
+  </div>
+
+  <h3>scratch-sync status</h3>
+
+  <p>Show the current sync status of all scratch-sync managed folders.</p>
+
+  <div class="code-block">
+    <pre><code>scratch-sync status</code></pre>
+  </div>
+
+  <p><strong>Output includes:</strong></p>
+  <ul>
+    <li>Your Syncthing device ID</li>
+    <li>List of scratch folders and their sync state</li>
+    <li>Connected devices and their connection status</li>
+  </ul>
+
+  <p><strong>Example:</strong></p>
+
+  <div class="code-block">
+    <pre><code>$ uvx scratch-sync status
+Device ID: XXXXXXX-XXXXXXX-XXXXXXX-XXXXXXX-XXXXXXX-XXXXXXX-XXXXXXX-XXXXXXX
+
+Scratch folders: 2
+  - scratch-sleap-io: idle
+  - scratch-my-project: syncing
+
+Connected devices: 1
+  - YYYYYYY-YYYYYYY... connected</code></pre>
+  </div>
+
+  <h3>scratch-sync list</h3>
+
+  <p>List all scratch-sync managed folders.</p>
+
+  <div class="code-block">
+    <pre><code>scratch-sync list</code></pre>
+  </div>
+
+  <p><strong>Example:</strong></p>
+
+  <div class="code-block">
+    <pre><code>$ uvx scratch-sync list
+Scratch folders:
+  - scratch-sleap-io
+  - scratch-my-project
+  - scratch-notes</code></pre>
+  </div>
+
+  <h3>scratch-sync serve</h3>
+
+  <p>Run the discovery server for auto-pairing. This is useful for headless servers or long-running discovery.</p>
+
+  <div class="code-block">
+    <pre><code>scratch-sync serve [--port PORT]</code></pre>
+  </div>
+
+  <table>
+    <tr>
+      <th>Option</th>
+      <th>Description</th>
+    </tr>
+    <tr>
+      <td><code>--port, -p</code></td>
+      <td>Port to run discovery server on (default: 8385)</td>
+    </tr>
+  </table>
+
+  <p><strong>Example:</strong></p>
+
+  <div class="code-block">
+    <pre><code># Run discovery server in foreground
+uvx scratch-sync serve
+
+# Custom port
+uvx scratch-sync serve --port 9000</code></pre>
+  </div>
+
+  <h2>Workflow Example</h2>
+
+  <p>Here's a typical workflow for setting up scratch-sync across two machines:</p>
+
+  <h3>On Machine A (e.g., your laptop)</h3>
+
+  <div class="code-block">
+    <pre><code># 1. Install Syncthing
+curl -LsSf https://scratch.tlab.sh/install.sh | sh
+
+# 2. Initialize in your project
+cd ~/code/my-project
+uvx scratch-sync init
+
+# 3. Start pairing (keep this running)
+uvx scratch-sync pair</code></pre>
+  </div>
+
+  <h3>On Machine B (e.g., your workstation)</h3>
+
+  <div class="code-block">
+    <pre><code># 1. Install Syncthing
+curl -LsSf https://scratch.tlab.sh/install.sh | sh
+
+# 2. Initialize in your project (same repo)
+cd ~/projects/my-project
+uvx scratch-sync init
+
+# 3. Pair with Machine A
+uvx scratch-sync pair</code></pre>
+  </div>
+
+  <p>Once paired, the <code>scratch/</code> folders will sync automatically. Any files you add to <code>scratch/</code> on one machine will appear on the other within seconds.</p>
+
+  <h2>Direct Syncthing Commands</h2>
+
+  <p>scratch-sync is a wrapper around Syncthing. For advanced use, you can use Syncthing directly:</p>
+
+  <div class="code-block">
+    <pre><code># View all folders
+syncthing cli config folders list
+
+# View all devices
+syncthing cli config devices list
+
+# Check folder status
+syncthing cli show folder-status scratch-my-project
+
+# Force rescan
+syncthing cli operations scan --folder scratch-my-project
+
+# Remove a folder
+syncthing cli config folders remove --id scratch-my-project</code></pre>
+  </div>
+
+  <p>The Syncthing web UI is also available at <a href="http://127.0.0.1:8384">http://127.0.0.1:8384</a></p>
+
+  <footer>
+    <a href="https://github.com/talmolab/scratch-sync">GitHub</a>
+    <a href="/">Home</a>
+    <a href="/install.html">Installation</a>
+    <a href="https://pypi.org/project/scratch-sync/">PyPI</a>
+  </footer>
+
+  <script>
+    function copyCode(btn, text) {
+      navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = 'Copy';
+          btn.classList.remove('copied');
+        }, 2000);
+      });
+    }
+  </script>
+</body>
+</html>

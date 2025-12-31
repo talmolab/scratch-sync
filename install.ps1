@@ -1,8 +1,8 @@
 # scratch-sync installer for Windows
-# Usage: iwr -useb https://raw.githubusercontent.com/talmo/scratch-sync/main/install.ps1 | iex
+# Usage: iwr -useb https://scratch.tlab.sh/install.ps1 | iex
 #
 # Or download and run:
-#   Invoke-WebRequest -Uri https://raw.githubusercontent.com/talmo/scratch-sync/main/install.ps1 -OutFile install.ps1
+#   Invoke-WebRequest -Uri https://scratch.tlab.sh/install.ps1 -OutFile install.ps1
 #   .\install.ps1
 
 param(

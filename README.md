@@ -131,6 +131,59 @@ Syncthing folder IDs just need to match across devices. The actual filesystem pa
 
 Full documentation at [scratch.tlab.sh](https://scratch.tlab.sh).
 
+## Development
+
+### Setup
+
+Clone the repository and install dependencies:
+
+```bash
+git clone https://github.com/talmolab/scratch-sync.git
+cd scratch-sync
+uv sync
+```
+
+This creates a virtual environment and installs all dependencies.
+
+### Running in development
+
+Run the CLI directly from source:
+
+```bash
+uv run scratch-sync --help
+```
+
+### Install from GitHub
+
+Install the latest development version from the `main` branch:
+
+```bash
+uv tool install git+https://github.com/talmolab/scratch-sync.git
+```
+
+Or run without installing:
+
+```bash
+uvx --from git+https://github.com/talmolab/scratch-sync.git scratch-sync --help
+```
+
+### Local editable install
+
+For development, install as an editable tool from your local checkout:
+
+```bash
+uv tool install --editable .
+```
+
+This installs `scratch-sync` globally but uses your local source files, so changes take effect immediately.
+
+To uninstall and reinstall after making changes to entry points:
+
+```bash
+uv tool uninstall scratch-sync
+uv tool install --editable .
+```
+
 ## License
 
 MIT

@@ -34,6 +34,21 @@ function Write-Success { Write-Host "done: " -ForegroundColor Green -NoNewline; 
 function Write-Warning { Write-Host "warn: " -ForegroundColor Yellow -NoNewline; Write-Host $args }
 function Write-Err { Write-Host "error: " -ForegroundColor Red -NoNewline; Write-Host $args; exit 1 }
 
+# Helper to safely check if a scheduled task exists
+# schtasks writes to stderr when task doesn't exist, which causes errors with $ErrorActionPreference = "Stop"
+function Test-ScheduledTaskExists {
+    param([string]$TaskName)
+    try {
+        $ErrorActionPreference = "SilentlyContinue"
+        $null = schtasks /Query /TN $TaskName 2>&1
+        return $LASTEXITCODE -eq 0
+    } catch {
+        return $false
+    } finally {
+        $ErrorActionPreference = "Stop"
+    }
+}
+
 # ============================================================================
 # Dependency Status Checks
 # ============================================================================
@@ -146,8 +161,7 @@ function Check-Syncthing {
 
     # Check autostart (Windows Task Scheduler or Startup folder)
     $autostart = ""
-    $task = schtasks /Query /TN "Syncthing" 2>$null
-    if ($LASTEXITCODE -eq 0) {
+    if (Test-ScheduledTaskExists "Syncthing") {
         $autostart = " / autostart: task_scheduler"
     } else {
         $startupPath = [Environment]::GetFolderPath('Startup')
@@ -208,8 +222,7 @@ function Test-InstallationComplete {
     }
 
     # Check autostart mechanisms
-    $task = schtasks /Query /TN "Syncthing" 2>$null
-    if ($LASTEXITCODE -eq 0) {
+    if (Test-ScheduledTaskExists "Syncthing") {
         $result.HasAutostart = $true
     } else {
         $startupPath = [Environment]::GetFolderPath('Startup')
@@ -473,10 +486,16 @@ function Uninstall-Syncthing {
         }
 
         # Try to remove scheduled task if exists
-        $taskExists = schtasks /Query /TN "Syncthing" 2>$null
-        if ($LASTEXITCODE -eq 0) {
+        if (Test-ScheduledTaskExists "Syncthing") {
             Write-Info "Removing scheduled task..."
-            schtasks /Delete /TN "Syncthing" /F 2>$null
+            try {
+                $ErrorActionPreference = "SilentlyContinue"
+                schtasks /Delete /TN "Syncthing" /F 2>&1 | Out-Null
+            } catch {
+                # Ignore errors during task deletion
+            } finally {
+                $ErrorActionPreference = "Stop"
+            }
         }
 
         Write-Success "Manual cleanup complete!"

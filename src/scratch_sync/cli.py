@@ -37,6 +37,14 @@ click.rich_click.COMMAND_GROUPS = {
     ]
 }
 
+def get_install_command() -> str:
+    """Get the OS-appropriate install command."""
+    if sys.platform == "win32":
+        return "iwr -useb https://scratch.tlab.sh/install.ps1 | iex"
+    else:
+        return "curl -LsSf https://scratch.tlab.sh/install.sh | sh"
+
+
 STIGNORE_TEMPLATE = """\
 // Syncthing ignore patterns for scratch folders
 // This file is NOT synced between devices
@@ -165,7 +173,7 @@ def init(path: Path | None, name: str | None):
     # Check syncthing is available
     if not syncthing.find_syncthing():
         console.print("[red]Error:[/] Syncthing not installed. Run the installer first:")
-        console.print("  [cyan]curl -LsSf https://scratch.tlab.sh/install.sh | sh[/]")
+        console.print(f"  [cyan]{get_install_command()}[/]")
         sys.exit(1)
 
     # Determine path
@@ -323,7 +331,8 @@ def pair(timeout: float, yes: bool):
         sys.exit(1)
 
     if not syncthing.find_syncthing():
-        console.print("[red]Error:[/] Syncthing not installed")
+        console.print("[red]Error:[/] Syncthing not installed. Run the installer first:")
+        console.print(f"  [cyan]{get_install_command()}[/]")
         sys.exit(1)
 
     console.print("[bold]Discovering Syncthing peers on Tailscale network...[/]")
@@ -581,7 +590,7 @@ def status():
     if not st_path:
         console.print()
         console.print("[red]Error:[/] Syncthing not installed. Run the installer first:")
-        console.print("  [cyan]curl -LsSf https://scratch.tlab.sh/install.sh | sh[/]")
+        console.print(f"  [cyan]{get_install_command()}[/]")
         sys.exit(1)
 
     if not syncthing.is_syncthing_running():
@@ -802,7 +811,8 @@ def list_folders():
     Shows all Syncthing folders with IDs starting with [cyan]scratch-[/].
     """
     if not syncthing.find_syncthing():
-        console.print("[red]Error:[/] Syncthing not installed")
+        console.print("[red]Error:[/] Syncthing not installed. Run the installer first:")
+        console.print(f"  [cyan]{get_install_command()}[/]")
         sys.exit(1)
 
     folders = syncthing.list_folders()
